@@ -46,7 +46,7 @@ void swarm_init(void)
     PAL_setColor(48 + 15, VCOL(7, 7, 7));
     VDP_setBackgroundColor(0);
 
-    snd_setMood(SND_DRIVE);
+    snd_setMood(SND_HARD);
 }
 
 void swarm_update(u16 t)

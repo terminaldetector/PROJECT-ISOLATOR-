@@ -50,19 +50,36 @@ void tunnel_update(u16 t)
         u16 rot = t + (i << 3);
         u8 col = 1 + ((i + (t >> 3)) % 14);
 
+        // the whole tube bends - distant rings swing away from the center
+        s16 bend = ((s32) SIN((t << 1) + z) * (300 - z)) >> 11;
+        s16 rcx = cx + bend;
+
         for (u16 s = 0; s <= RING_SEG; s++)
         {
             u16 a = rot + (s * 256) / RING_SEG;
-            px[s] = cx + (((RING_R * COS(a)) >> 8) * 160) / z;
+            px[s] = rcx + (((RING_R * COS(a)) >> 8) * 160) / z;
             py[s] = cy - (((RING_R * SIN(a)) >> 8) * 160) / z;
         }
         for (u16 s = 0; s < RING_SEG; s++)
             bmp_lineSafe(px[s], py[s], px[s + 1], py[s + 1], col);
 
-        // spokes connect neighbouring rings
         if (havePrev)
+        {
+            // near rings: checkered dithered wall panels
+            if (z < 130)
+            {
+                for (u16 s = 0; s < RING_SEG; s++)
+                {
+                    if (((s + (t >> 4)) & 1) == 0) continue;
+                    bmp_fillTri(px[s], py[s], px[s + 1], py[s + 1],
+                                qx[s + 1], qy[s + 1], col, 0);
+                    bmp_fillTri(px[s], py[s], qx[s + 1], qy[s + 1],
+                                qx[s], qy[s], col, 0);
+                }
+            }
             for (u16 s = 0; s < RING_SEG; s += 2)
                 bmp_lineSafe(px[s], py[s], qx[s], qy[s], col);
+        }
 
         for (u16 s = 0; s <= RING_SEG; s++)
         {

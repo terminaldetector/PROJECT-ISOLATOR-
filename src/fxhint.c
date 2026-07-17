@@ -5,24 +5,26 @@ u16 copperColors[COPPER_BANDS];
 
 static vu16 copIdx;
 static u16 copperOn = FALSE;
+static u32 cramCmd;
 
 static HINTERRUPT_CALLBACK copperHInt(void)
 {
     // one CRAM write fits comfortably in hblank
-    *((vu32 *) VDP_CTRL_PORT) = VDP_WRITE_CRAM_ADDR((u32) 0);
+    *((vu32 *) VDP_CTRL_PORT) = cramCmd;
     *((vu16 *) VDP_DATA_PORT) = copperColors[(copIdx < COPPER_BANDS - 1) ? ++copIdx : copIdx];
 }
 
 static void copperVInt(void)
 {
     copIdx = 0;
-    *((vu32 *) VDP_CTRL_PORT) = VDP_WRITE_CRAM_ADDR((u32) 0);
+    *((vu32 *) VDP_CTRL_PORT) = cramCmd;
     *((vu16 *) VDP_DATA_PORT) = copperColors[0];
 }
 
-void copper_enable(void)
+void copper_enable(u16 palIndex)
 {
     copIdx = 0;
+    cramCmd = VDP_WRITE_CRAM_ADDR((u32) (palIndex * 2));
     SYS_setHIntCallback(copperHInt);
     SYS_setVIntCallback(copperVInt);
     VDP_setHIntCounter(7);

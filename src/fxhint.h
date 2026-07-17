@@ -11,7 +11,9 @@
 
 extern u16 copperColors[COPPER_BANDS];
 
-void copper_enable(void);
+// palIndex: CRAM entry used as the screen background color
+// (0 in tile scenes, 16 in BMP scenes)
+void copper_enable(u16 palIndex);
 void copper_disable(void);
 
 // fill the band table with a vertical gradient c1 (top) -> c2 (bottom)

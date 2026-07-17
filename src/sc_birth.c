@@ -59,15 +59,24 @@ static void emblem(s16 cx, s16 cy, s16 r, u16 rot, u16 eyeOpen, u8 col, u8 eyeCo
     }
     (void) fx; (void) fy;
 
-    // iris circle
+    // iris: dithered solid disc with a dark pupil core
     s16 ir = ry >> 1;
     if (ir > 2)
     {
-        for (u16 i = 0; i < 8; i++)
+        for (s16 yy = -ir; yy <= ir; yy++)
         {
-            u16 a1 = (i * 256) / 8, a2 = ((i + 1) * 256) / 8;
-            bmp_lineSafe(cx + ((ir * COS(a1)) >> 8), ey - ((ir * SIN(a1)) >> 8),
-                         cx + ((ir * COS(a2)) >> 8), ey - ((ir * SIN(a2)) >> 8), 15);
+            s16 v = ir * ir - yy * yy;
+            s16 w = ir;
+            while (w * w > v) w--;
+            bmp_hspan(cx - w, cx + w, ey + yy, (yy & 1) ? BCOL2(4, 15) : BCOL2(15, 4));
+        }
+        s16 pr = ir >> 1;
+        for (s16 yy = -pr; yy <= pr; yy++)
+        {
+            s16 v = pr * pr - yy * yy;
+            s16 w = pr;
+            while (w * w > v) w--;
+            bmp_hspan(cx - w, cx + w, ey + yy, BCOL(0));
         }
     }
 }

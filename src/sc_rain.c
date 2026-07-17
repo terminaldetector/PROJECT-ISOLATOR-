@@ -61,12 +61,14 @@ void rain_init(void)
     rnd_seed(0xD1CE);
     genGlyphTiles();
 
-    // PAL2 bright stream, PAL3 dim tail
+    // four palettes = four brightness stages of the stream
     PAL_setColor(0, 0x0000);
-    PAL_setColor(32 + 2, VCOL(3, 7, 4));
-    PAL_setColor(48 + 2, VCOL(0, 3, 1));
+    PAL_setColor(32 + 2, VCOL(4, 7, 5));    // PAL2: white-green head
+    PAL_setColor(16 + 2, VCOL(1, 5, 2));    // PAL1: body
+    PAL_setColor(48 + 2, VCOL(0, 3, 1));    // PAL3: tail
     PAL_setColor(48 + 1, VCOL(0, 1, 1));
     VDP_setBackgroundColor(0);
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_COLUMN);
 
     VDP_fillTileMapRect(BG_B, TILE_ATTR_FULL(PAL3, 0, 0, 0, T_GRID), 0, 0, 64, 32);
 
@@ -96,17 +98,26 @@ void rain_update(u16 t)
             continue;
         }
 
-        // bright head
+        // four-stage trail: head -> body -> tail -> gone
         if (h >= 0 && h < ROWS)
             VDP_setTileMapXY(BG_A,
                 TILE_ATTR_FULL(PAL2, 0, 0, 0, T_GLYPH + (rnd() & 7)), c, h);
-        // body dims
         if (h - 3 >= 0 && h - 3 < ROWS)
             VDP_setTileMapXY(BG_A,
-                TILE_ATTR_FULL(PAL3, 0, 0, 0, T_GLYPH + (rnd() & 7)), c, h - 3);
-        // tail evaporates
-        if (h - 9 >= 0 && h - 9 < ROWS)
-            VDP_setTileMapXY(BG_A, TILE_ATTR_FULL(PAL0, 0, 0, 0, 0), c, h - 9);
+                TILE_ATTR_FULL(PAL1, 0, 0, 0, T_GLYPH + (rnd() & 7)), c, h - 3);
+        if (h - 6 >= 0 && h - 6 < ROWS)
+            VDP_setTileMapXY(BG_A,
+                TILE_ATTR_FULL(PAL3, 0, 0, 0, T_GLYPH + (rnd() & 7)), c, h - 6);
+        if (h - 10 >= 0 && h - 10 < ROWS)
+            VDP_setTileMapXY(BG_A, TILE_ATTR_FULL(PAL0, 0, 0, 0, 0), c, h - 10);
+    }
+
+    // the whole curtain warps in a slow wave (per-column vscroll)
+    {
+        s16 vtab[20];
+        for (u16 c = 0; c < 20; c++)
+            vtab[c] = SIN((t << 1) + (c * 13)) >> 5;
+        VDP_setVerticalScrollTile(BG_A, 0, vtab, 20, DMA_QUEUE);
     }
 
     // background grid drifts down slowly

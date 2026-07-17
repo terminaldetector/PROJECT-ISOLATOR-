@@ -23,6 +23,9 @@ static const Scene scenes[] =
     { rain_init,       rain_update,       600 },   // digital rain
     { finale_init,     finale_update,     980 },   // breakdown + credits
     { flower_init,     flower_update,    1150 },   // falling flower epilogue
+    { tree_init,       tree_update,      1100 },   // the tree of life
+    { aleph_init,      aleph_update,      700 },   // aleph
+    { myth_init,       myth_update,       900 },   // the spark - MYTH
 };
 
 #define NUM_SCENES  (sizeof(scenes) / sizeof(Scene))
@@ -38,6 +41,7 @@ void demo_enterTiles(void)
     copper_disable();
     SYS_disableInts();
     VDP_setHInterrupt(FALSE);
+    VDP_setHilightShadow(FALSE);
     VDP_setScreenWidth320();
     VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
     VDP_setHorizontalScroll(BG_A, 0);

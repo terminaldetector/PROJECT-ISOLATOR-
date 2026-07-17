@@ -74,7 +74,9 @@ void metropolis_init(void)
     buildSkyline(BG_A, PAL3, 10, 22, 3);
 
     cutJump = 0;
-    snd_setMood(SND_DRIVE);
+    // far layer sinks into hardware shadow - depth for free
+    VDP_setHilightShadow(TRUE);
+    snd_setMood(SND_HARD);
 }
 
 void metropolis_update(u16 t)
@@ -95,11 +97,20 @@ void metropolis_update(u16 t)
     s32 far = ((s32) t << 1) + cutJump;
     s32 near = ((s32) t * 6) + (cutJump << 1);
 
+    // tear distortion: for a few frames after each cut a band of the
+    // frame rips sideways
+    u16 tearAge = t % 150;
+    u16 tearY = 40 + ((t / 150) * 37) % 140;
+
     for (u16 y = 0; y < 224; y++)
     {
         lineB[y] = (s16) -(far >> ((y < 100) ? 1 : 0));
-        // bottom band rushes even faster - street level
         lineA[y] = (s16) -((y >= 168) ? (near << 1) : near);
+        if (tearAge < 10 && y >= tearY && y < tearY + 24)
+        {
+            lineA[y] += (10 - tearAge) * 9;
+            lineB[y] -= (10 - tearAge) * 5;
+        }
     }
     VDP_setHorizontalScrollLine(BG_B, 0, lineB, 224, DMA_QUEUE);
     VDP_setHorizontalScrollLine(BG_A, 0, lineA, 224, DMA_QUEUE);

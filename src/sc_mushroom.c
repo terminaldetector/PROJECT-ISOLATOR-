@@ -5,23 +5,28 @@
 #include "fxpal.h"
 #include "draw3d.h"
 #include "sound.h"
+#include "seq.h"
 
-// scene 9: procedural nuclear bloom - flash, stem, cap, shockwave
+// scene 9: procedural nuclear bloom, beat-locked.
+// the detonation waits for the downbeat; the shockwave rides the bars,
+// aftershocks land on the snare. dithered fireball flesh.
 
-#define GY 150      // ground line
+#define GY 150
+
+static u16 detonated;
+static u16 detFrame;
 
 void mushroom_init(void)
 {
     demo_enterBMP();
-
-    // start as a blinding flash
     fx_allWhite();
-    snd_boom();
+    detonated = FALSE;
+    detFrame = 0;
+    snd_setMood(SND_HARD);
 }
 
 static void heatPalette(u16 age)
 {
-    // white -> yellow -> orange -> red -> darkness, cooling with age
     for (u16 i = 1; i < 16; i++)
     {
         s16 heat = (15 - i) + 8 - (age >> 6);
@@ -40,30 +45,35 @@ static void heatPalette(u16 age)
 
 void mushroom_update(u16 t)
 {
-    if (t < 14)
-        return;             // hold the white flash
-    if (t == 14)
-        heatPalette(0);
+    // hold the blinding flash until the music says NOW
+    if (!detonated)
+    {
+        if ((t > 8 && seq_isDownbeat()) || t > 120)
+        {
+            detonated = TRUE;
+            heatPalette(0);
+            snd_boom();
+        }
+        return;
+    }
 
     BMP_waitWhileFlipRequestPending();
     BMP_clear();
 
-    u16 age = t - 14;
+    u16 age = detFrame++;
 
-    // growth curves
-    s16 hs = age;                       // stem height
+    s16 hs = age;
     if (hs > 92) hs = 92;
-    s16 sw = 8 + (age >> 3);            // stem half width
+    s16 sw = 8 + (age >> 3);
     if (sw > 20) sw = 20;
-    s16 cr = 12 + (age >> 1);           // cap radius
+    s16 cr = 12 + (age >> 1);
     if (cr > 58) cr = 58;
 
     s16 capY = GY - hs;
 
-    // ground
     bmp_lineSafe(0, GY, 255, GY, 3);
 
-    // stem: dense vertical strokes, brighter in the core
+    // stem: dithered column of fire
     for (s16 x = -sw; x <= sw; x += 2)
     {
         u8 col = (x < -(sw >> 1) || x > (sw >> 1)) ? 5 : 12;
@@ -71,27 +81,32 @@ void mushroom_update(u16 t)
         bmp_lineSafe(128 + x + wob, GY, 128 + x, capY + (cr >> 2), col);
     }
 
-    // cap: radial fan, filled look, rolling edges
-    for (u16 i = 0; i <= 32; i++)
+    // cap: solid dithered dome, brighter core - real fireball flesh
+    for (s16 yy = -(cr >> 1); yy <= 0; yy += 1)
     {
-        u16 a = (i << 2);               // 0..128 - upper half circle
-        s16 rr = cr + (SIN((age << 1) + (i << 4)) >> 5);
-        u8 col = 4 + ((i * 11) >> 5);
-        bmp_lineSafe(128, capY, 128 + ((rr * COS(a)) >> 8),
-                     capY - ((rr * SIN(a)) >> 8) / 2, col);
+        s16 d = -yy;
+        s16 v = (cr >> 1) * (cr >> 1) - d * d;
+        s16 w = cr;
+        while ((w * w) >> 2 > v && w > 0) w--;
+        u8 inner = 12 - (d >> 3);
+        u8 outer = 6 + ((age >> 5) & 1);
+        bmp_hspan(128 - w, 128 + w, capY + yy,
+                  (yy & 1) ? BCOL2(inner, outer) : BCOL2(outer, inner));
     }
-    // cap rim curl
+    // rolling rim
     for (u16 i = 0; i < 16; i++)
     {
         u16 a1 = i << 3, a2 = (i + 1) << 3;
-        bmp_lineSafe(128 + ((cr * COS(a1)) >> 8), capY - (((cr * SIN(a1)) >> 8) >> 1),
-                     128 + ((cr * COS(a2)) >> 8), capY - (((cr * SIN(a2)) >> 8) >> 1), 14);
+        s16 rr = cr + (SIN((age << 1) + (i << 4)) >> 5);
+        bmp_lineSafe(128 + ((rr * COS(a1)) >> 8), capY - (((rr * SIN(a1)) >> 8) >> 1),
+                     128 + ((rr * COS(a2)) >> 8), capY - (((rr * SIN(a2)) >> 8) >> 1), 14);
     }
 
-    // shockwave ellipse expanding along the ground
-    s16 srx = age << 1;
-    s16 sry = age / 3;
-    if (srx < 250)
+    // shockwave: a ring per bar, expanding with the music
+    u16 ringBase = (seq_bar() & 3) * 24;
+    s16 srx = (age << 1) + ringBase;
+    s16 sry = (age / 3) + (ringBase >> 3);
+    if (srx < 260)
         for (u16 i = 0; i < 16; i++)
         {
             u16 a1 = i << 4, a2 = (i + 1) << 4;
@@ -99,19 +114,21 @@ void mushroom_update(u16 t)
                          128 + ((srx * COS(a2)) >> 8), GY - ((sry * SIN(a2)) >> 8), 15);
         }
 
-    // debris and sparks around the cap
+    // debris storm
     for (u16 i = 0; i < 6; i++)
     {
-        s16 dx = (s16)(rnd() & 127) - 64;
-        s16 dy = (s16)(rnd() & 63) - 40;
-        BMP_setPixel(128 + dx, capY + dy, BCOL(10 + (rnd() & 5)));
+        s16 ddx = (s16)(rnd() & 127) - 64;
+        s16 ddy = (s16)(rnd() & 63) - 40;
+        BMP_setPixel(128 + ddx, capY + ddy, BCOL(10 + (rnd() & 5)));
     }
 
     BMP_flip(1);
 
-    // the fireball cools over time
     if ((age & 31) == 0) heatPalette(age);
 
-    // ground rumble aftershocks
-    if (age == 180 || age == 360) snd_boom();
+    // aftershocks ride the snare
+    if (seq_isSnare() && age > 120) snd_boom();
+    // white flicker on the kick - the sky still burns
+    if (seq_isKick()) PAL_setColor(16, VCOL(2, 2, 2));
+    else if ((t & 7) == 0) PAL_setColor(16, 0x0000);
 }

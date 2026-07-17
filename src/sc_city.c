@@ -5,6 +5,9 @@
 #include "fxpal.h"
 #include "draw3d.h"
 #include "sound.h"
+#include "seq.h"
+
+static u16 built;
 
 // scene 3: the AI builds a wireframe city around the eye, camera orbits
 
@@ -34,11 +37,22 @@ static void drawBuilding(const Building *b, u8 col)
     d3_line(&v[1], &v[5], col);
     d3_line(&v[2], &v[6], col);
     d3_line(&v[3], &v[7], col);
-    // roof
-    d3_line(&v[4], &v[5], col);
-    d3_line(&v[5], &v[7], col);
-    d3_line(&v[7], &v[6], col);
-    d3_line(&v[6], &v[4], col);
+    // roof: dithered solid slab when it faces the camera
+    s16 rx[4], ry[4];
+    u16 ok = d3_project(&v[4], &rx[0], &ry[0]) && d3_project(&v[5], &rx[1], &ry[1])
+          && d3_project(&v[7], &rx[2], &ry[2]) && d3_project(&v[6], &rx[3], &ry[3]);
+    if (ok && !d3_backface(rx[0], ry[0], rx[1], ry[1], rx[2], ry[2]))
+    {
+        bmp_fillTri(rx[0], ry[0], rx[1], ry[1], rx[2], ry[2], col, 1);
+        bmp_fillTri(rx[0], ry[0], rx[2], ry[2], rx[3], ry[3], col, 1);
+    }
+    else if (ok)
+    {
+        bmp_lineSafe(rx[0], ry[0], rx[1], ry[1], col);
+        bmp_lineSafe(rx[1], ry[1], rx[2], ry[2], col);
+        bmp_lineSafe(rx[2], ry[2], rx[3], ry[3], col);
+        bmp_lineSafe(rx[3], ry[3], rx[0], ry[0], col);
+    }
 }
 
 void city_init(void)
@@ -62,6 +76,7 @@ void city_init(void)
         bld[i].h = 30 + rnd_range(70);
     }
 
+    built = 0;
     snd_setMood(SND_DRIVE);
 }
 
@@ -87,22 +102,23 @@ void city_update(u16 t)
         d3_line(&a, &b, 1);
     }
 
-    // buildings appear one by one - the newest ones glow
-    u16 visible = 1 + t / 55;
-    if (visible > MAX_B) visible = MAX_B;
-    for (u16 i = 0; i < visible; i++)
+    // the AI builds on the kick: a new tower rises with every other hit
+    if (seq_isKick() && (seq_step() == 0 || seq_step() == 8) && built < MAX_B)
+        built++;
+    if (built == 0 && t > 90) built = 1;
+    for (u16 i = 0; i < built; i++)
     {
         u8 col = 2;
-        if (i == visible - 1 && t / 55 < MAX_B)
+        if (i == built - 1 && built < MAX_B)
             col = ((t & 4) ? 15 : 3);      // construction flicker
         drawBuilding(&bld[i], col);
     }
 
-    // scanning beam sweeps the city
-    if (t > 400)
+    // the scan beam answers the snare
+    if (seq_isSnare())
     {
-        u16 sweep = (t << 1) & 511;
-        if (sweep < 256) bmp_lineSafe(sweep, 0, sweep, 159, 1);
+        u16 sweep = (t << 3) & 255;
+        bmp_lineSafe(sweep, 0, sweep, 159, 15);
     }
 
     // data noise

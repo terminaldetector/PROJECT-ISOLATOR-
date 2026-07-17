@@ -3,6 +3,7 @@
 #include "timeline.h"
 #include "util.h"
 #include "fxpal.h"
+#include "fxhint.h"
 #include "sound.h"
 
 // scene 6: pseudo mode7 - per-line hscroll turns a flat tile plane
@@ -103,6 +104,11 @@ void landscape_init(void)
     camX = 0;
     vscroll = 0;
 
+    // copper sky: CRAM 49 is both the backdrop color and the solid sky tiles,
+    // so the raster gradient paints the entire sky for free
+    copper_enable(49);
+    copper_gradient3(VCOL(0, 0, 2), VCOL(2, 0, 4), VCOL(6, 2, 1), 6);
+
     snd_setMood(SND_DRIVE);
 }
 
@@ -140,9 +146,14 @@ void landscape_update(u16 t)
     VDP_setHorizontalScrollLine(BG_B, 0, lineB, 224, DMA_QUEUE);
     VDP_setHorizontalScrollLine(BG_A, 0, lineA, 224, DMA_QUEUE);
 
-    // grid pulse + dawn slowly breaking over the mountains
+    // grid pulse + dawn slowly breaking across the copper sky
     if ((t & 3) == 0)
         PAL_setColor(32 + 2, fx_hue((t >> 1) & 255, 5 + ((t >> 5) & 1)));
-    if ((t & 63) == 0 && t < 512)
-        PAL_setColor(48 + 3, VCOL(2 + (t >> 7), 0, 4));
+    if ((t & 15) == 0)
+    {
+        u16 dawn = t >> 6;
+        if (dawn > 6) dawn = 6;
+        copper_gradient3(VCOL(0, 0, 2), VCOL(2, dawn >> 1, 4),
+                         VCOL(1 + dawn, 1 + (dawn >> 1), 1), 6 + (dawn >> 1));
+    }
 }

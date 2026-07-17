@@ -3,6 +3,7 @@
 #include "timeline.h"
 #include "util.h"
 #include "fxpal.h"
+#include "fxhint.h"
 #include "sound.h"
 
 // scene 11: the world breaks - glitch, shatter into triangles,
@@ -72,7 +73,7 @@ void finale_init(void)
         vy8[i] = ((v * SIN(a)) >> 8) - 8;
     }
 
-    snd_setMood(SND_DRIVE);
+    snd_setMood(SND_HARD);
 }
 
 void finale_update(u16 t)
@@ -100,9 +101,6 @@ void finale_update(u16 t)
             PAL_setColor(0, fx_hue(rnd() & 255, 2));
         else
             PAL_setColor(0, 0x0000);
-
-        PSG_setNoise(1, rnd() & 3);
-        PSG_setEnvelope(3, 8 + (rnd() & 5));
     }
     else if (t == 180)
     {
@@ -112,7 +110,6 @@ void finale_update(u16 t)
         for (u16 y = 0; y < 224; y++) lineA[y] = 0;
         VDP_setHorizontalScrollLine(BG_A, 0, lineA, 224, DMA_QUEUE);
         PAL_setColor(0, 0x0000);
-        PSG_setEnvelope(3, 15);
         snd_boom();
     }
     else if (t < 430)
@@ -145,13 +142,15 @@ void finale_update(u16 t)
     }
     else if (t == 430)
     {
-        // PHASE D: white silence
+        // PHASE D: white silence with a warm copper breath
         VDP_clearSprites();
         VDP_updateSprites(1, DMA);
         fx_allWhite();
         PAL_setColor(15, VCOL(1, 1, 3));              // ink on white
         VDP_setTextPalette(PAL0);
         VDP_setBackgroundColor(0);
+        copper_enable(0);
+        copper_gradient3(VCOL(7, 7, 7), VCOL(7, 6, 5), VCOL(7, 7, 7), 14);
         snd_setMood(SND_OFF);
     }
     else
@@ -176,7 +175,7 @@ void finale_update(u16 t)
         {
             u16 v = 7 - ((t - 930) / 7);
             if (v > 7) v = 0;
-            fx_fillPal(0, 1, VCOL(v, v, v));
+            copper_gradient(VCOL(v, v, v), VCOL(v, v > 0 ? v - 1 : 0, v));
             u16 ink = v >> 2;
             PAL_setColor(15, VCOL(ink, ink, ink + (v > 2 ? 1 : 0)));
         }
