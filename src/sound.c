@@ -11,7 +11,7 @@ static u8  pattern[16];
 void snd_init(void)
 {
     for (u16 i = 0; i < 16; i++) pattern[i] = rnd_range(8);
-    PSG_init();
+    PSG_reset();
 }
 
 void snd_setMood(u8 m)
