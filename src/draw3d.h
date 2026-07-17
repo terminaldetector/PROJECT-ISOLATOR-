@@ -15,4 +15,14 @@ void d3_line(const V3 *a, const V3 *b, u8 col);
 // line clipped to the BMP area
 void bmp_lineSafe(s16 x1, s16 y1, s16 x2, s16 y2, u8 col);
 
+// horizontal span with an explicit 2-pixel byte pattern
+void bmp_hspan(s16 x1, s16 x2, s16 y, u8 pattern);
+
+// filled triangle with checker dithering between palette colors c1/c2
+// (pass c1 == c2 for a solid fill)
+void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2);
+
+// TRUE when the projected triangle winds away from the camera
+u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3);
+
 #endif

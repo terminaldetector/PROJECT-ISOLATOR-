@@ -3,6 +3,7 @@
 #include "sound.h"
 #include "util.h"
 #include "fxpal.h"
+#include "fxhint.h"
 
 u32 g_frame = 0;
 
@@ -34,6 +35,7 @@ void demo_enterTiles(void)
         bmpOn = FALSE;
     }
 
+    copper_disable();
     SYS_disableInts();
     VDP_setHInterrupt(FALSE);
     VDP_setScreenWidth320();

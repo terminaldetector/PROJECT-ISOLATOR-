@@ -48,3 +48,67 @@ void d3_line(const V3 *a, const V3 *b, u8 col)
     if (d3_project(a, &x1, &y1) && d3_project(b, &x2, &y2))
         bmp_lineSafe(x1, y1, x2, y2, col);
 }
+
+void bmp_hspan(s16 x1, s16 x2, s16 y, u8 pattern)
+{
+    if (y < 0 || y > 159) return;
+    if (x1 > x2) { s16 t = x1; x1 = x2; x2 = t; }
+    if (x2 < 0 || x1 > 255) return;
+    if (x1 < 0) x1 = 0;
+    if (x2 > 255) x2 = 255;
+    Line l;
+    l.pt1.x = x1; l.pt1.y = y;
+    l.pt2.x = x2; l.pt2.y = y;
+    l.col = pattern;
+    BMP_drawLine(&l);
+}
+
+// scanline-filled triangle, checker-dithered between two palette colors
+void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2)
+{
+    s16 tx, ty;
+    // sort vertices by y
+    if (y1 > y2) { ty = y1; y1 = y2; y2 = ty; tx = x1; x1 = x2; x2 = tx; }
+    if (y2 > y3) { ty = y2; y2 = y3; y3 = ty; tx = x2; x2 = x3; x3 = tx; }
+    if (y1 > y2) { ty = y1; y1 = y2; y2 = ty; tx = x1; x1 = x2; x2 = tx; }
+    if (y3 < 0 || y1 > 159 || y1 == y3) return;
+
+    u8 even = BCOL2(c1, c2);
+    u8 odd  = BCOL2(c2, c1);
+
+    // long edge y1->y3, split edges y1->y2, y2->y3 (8.8 fixed point walk)
+    s32 xl = (s32) x1 << 8;
+    s32 dl = (((s32)(x3 - x1)) << 8) / (y3 - y1);
+    s32 xs, ds;
+
+    if (y2 > y1)
+    {
+        xs = (s32) x1 << 8;
+        ds = (((s32)(x2 - x1)) << 8) / (y2 - y1);
+        for (s16 y = y1; y < y2; y++)
+        {
+            bmp_hspan(xl >> 8, xs >> 8, y, (y & 1) ? odd : even);
+            xl += dl;
+            xs += ds;
+        }
+    }
+    if (y3 > y2)
+    {
+        xs = (s32) x2 << 8;
+        ds = (((s32)(x3 - x2)) << 8) / (y3 - y2);
+        for (s16 y = y2; y <= y3; y++)
+        {
+            bmp_hspan(xl >> 8, xs >> 8, y, (y & 1) ? odd : even);
+            xl += dl;
+            xs += ds;
+        }
+    }
+    else
+        bmp_hspan(xl >> 8, x3, y3, (y3 & 1) ? odd : even);
+}
+
+u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3)
+{
+    s32 cross = (s32)(x2 - x1) * (y3 - y1) - (s32)(y2 - y1) * (x3 - x1);
+    return cross >= 0;
+}

@@ -19,5 +19,8 @@ u16  rnd_range(u16 n);
 
 // 4bpp byte pattern (2 pixels) for the BMP engine
 #define BCOL(c)  (((c) << 4) | (c))
+// two-color pattern: free vertical-stripe dithering; alternate per row
+// for a checkerboard - doubles the apparent palette depth
+#define BCOL2(a, b)  (((a) << 4) | (b))
 
 #endif
