@@ -177,6 +177,8 @@ void finale_update(u16 t)
             u16 v = 7 - ((t - 930) / 7);
             if (v > 7) v = 0;
             fx_fillPal(0, 1, VCOL(v, v, v));
+            u16 ink = v >> 2;
+            PAL_setColor(15, VCOL(ink, ink, ink + (v > 2 ? 1 : 0)));
         }
     }
 }

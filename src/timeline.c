@@ -21,6 +21,7 @@ static const Scene scenes[] =
     { mushroom_init,   mushroom_update,   660 },   // procedural nuke
     { rain_init,       rain_update,       600 },   // digital rain
     { finale_init,     finale_update,     980 },   // breakdown + credits
+    { flower_init,     flower_update,    1150 },   // falling flower epilogue
 };
 
 #define NUM_SCENES  (sizeof(scenes) / sizeof(Scene))

@@ -6,6 +6,7 @@
 #define SND_OFF     0
 #define SND_CALM    1
 #define SND_DRIVE   2
+#define SND_AGONY   3
 
 void snd_init(void);
 void snd_setMood(u8 mood);

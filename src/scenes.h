@@ -14,6 +14,7 @@ void swarm_init(void);      void swarm_update(u16 t);
 void mushroom_init(void);   void mushroom_update(u16 t);
 void rain_init(void);       void rain_update(u16 t);
 void finale_init(void);     void finale_update(u16 t);
+void flower_init(void);     void flower_update(u16 t);
 
 // shared by swarm / metropolis / finale: procedural triangle sprite tiles
 // sizes 8/16/24/32 px, returns base VRAM tile index for each of the 4 sizes

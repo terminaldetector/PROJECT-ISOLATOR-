@@ -22,6 +22,6 @@ clean:
 endif
 
 docker:
-	docker run --rm -v "$(CURDIR)":/src ghcr.io/stephane-d/sgdk:latest
+	docker run --rm -v "$(CURDIR)":/src -u "$(shell id -u):$(shell id -g)" ghcr.io/stephane-d/sgdk:latest
 
 .PHONY: all clean docker

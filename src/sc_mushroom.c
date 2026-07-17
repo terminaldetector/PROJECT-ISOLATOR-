@@ -31,6 +31,7 @@ static void heatPalette(u16 age)
         u16 b = heat > 12 ? heat - 10 : 0;
         if (r > 7) r = 7;
         if (g > 7) g = 7;
+        if (b > 7) b = 7;
         PAL_setColor(16 + i, VCOL(r, g, b));
     }
     PAL_setColor(16, 0x0000);

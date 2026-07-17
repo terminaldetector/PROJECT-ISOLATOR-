@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build ROM with SGDK
-        run: docker run --rm -v "$PWD":/src ghcr.io/stephane-d/sgdk:latest
+        run: docker run --rm -v "$PWD":/src -u "$(id -u):$(id -g)" ghcr.io/stephane-d/sgdk:latest
 
       - name: Collect ROM
         run: cp out/rom.bin syntaxis-fractal-genesis.bin
