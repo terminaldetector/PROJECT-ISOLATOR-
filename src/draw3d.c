@@ -112,3 +112,10 @@ u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3)
     s32 cross = (s32)(x2 - x1) * (y3 - y1) - (s32)(y2 - y1) * (x3 - x1);
     return cross >= 0;
 }
+
+s16 d3_depth(const V3 *v)
+{
+    s32 zc = ((s32) v->z * cs_ay - (s32) v->x * sn_ay) >> 8;
+    s32 zf = (((s32) v->y * sn_ax + zc * cs_ax) >> 8) + camDist;
+    return (s16) zf;
+}

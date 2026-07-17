@@ -80,6 +80,8 @@ static const u8 leadMyth[64] =
 
 // bass groove as semitone offsets from the chord root (oct 2), 0xFF = rest
 static const u8 bassDrive[16] = { 0,0,12,0, 0,12,0,0, 0,0,12,0, 7,7,10,10 };
+// hardcore: a relentless pumping 16th octave line - the Contra Hard Corps engine
+static const u8 bassHard[16]  = { 0,12,0,12, 0,12,0,12, 0,12,0,12, 7,7,10,12 };
 static const u8 bassCalm[16]  = { 0,0xFF,0xFF,0xFF, 0xFF,0xFF,0xFF,0xFF, 12,0xFF,0xFF,0xFF, 0xFF,0xFF,0xFF,0xFF };
 static const u8 bassMyth[16]  = { 0,0xFF,0xFF,0xFF, 12,0xFF,0xFF,0xFF, 0,0xFF,0xFF,0xFF, 12,0xFF,7,0xFF };
 
@@ -89,6 +91,8 @@ static const u16 kickHard  = 0x5555;    // doubled - the hardcore
 static const u16 snareMask = 0x1010;    // backbeat 4 & 12
 static const u16 stabDrive = 0x4210;    // syncopated brass hits
 static const u16 stabHard  = 0x4444;
+// open-hat accents (offbeat 16ths) for the driving Konami shuffle
+static const u16 hatOpen   = 0xAAAA;
 
 // --------------------------------------------------------------------------
 
@@ -99,6 +103,7 @@ static u16 kickFlag, snareFlag, downbeatFlag;
 static u16 kickPhase = 99, tomPhase = 99;
 static u16 boomTimer;
 static u16 snarePhase = 99, hatPhase = 99;
+static u16 hatOpenFlag;
 static u8  leadHist[8];
 
 static const Chord *prog;
@@ -175,8 +180,9 @@ void seq_setSection(u8 sec)
 
     if (sec == SEC_OFF) return;
 
-    // tempo per section: 150 BPM 16ths, half-time feel for the slow ones
-    stepLen = (sec == SEC_AGONY || sec == SEC_MYTHIC) ? 9 : 6;
+    // tempo per section: 150 BPM drive, a faster 180 BPM for the hardcore,
+    // half-time feel for the slow ones
+    stepLen = (sec == SEC_AGONY || sec == SEC_MYTHIC) ? 9 : (sec == SEC_HARD ? 5 : 6);
 
     switch (sec)
     {
@@ -186,7 +192,7 @@ void seq_setSection(u8 sec)
                          kickMask = 0x0101; stabMask = 0x0010; break;
         case SEC_CALM:   prog = progMain;  leadPat = leadDrive; bassPat = bassCalm;
                          kickMask = 0; stabMask = 0; break;
-        case SEC_HARD:   prog = progMain;  leadPat = leadDrive; bassPat = bassDrive;
+        case SEC_HARD:   prog = progMain;  leadPat = leadDrive; bassPat = bassHard;
                          kickMask = kickHard; stabMask = stabHard; break;
         default:         prog = progMain;  leadPat = leadDrive; bassPat = bassDrive;
                          kickMask = kickDrive; stabMask = stabDrive; break;
@@ -221,10 +227,18 @@ static void fireStep(void)
         u8 oct = 2 + (bofs / 12) + (semi > 11 ? 1 : 0);
         fm_on(0, semi % 12, oct);
         PSG_setFrequency(2, 55 + ch->root * 3);
-        PSG_setEnvelope(2, (section == SEC_CALM) ? 15 : 9);
+        PSG_setEnvelope(2, 8);
     }
     else if (section == SEC_CALM && bofs != 0xFF)
         fm_on(0, ch->root, 2);
+
+    // HARD: a relentless PSG sub pumps on EVERY 16th under the FM bass -
+    // the fat, driving low end that carries the Hard Corps feel
+    if (section == SEC_HARD)
+    {
+        PSG_setFrequency(2, 55 + ch->root * 3);
+        PSG_setEnvelope(2, (step & 1) ? 7 : 4);
+    }
 
     // LEAD (FM1 + FM2 detuned unison), echo history for PSG0
     u8 ln = leadPat[patIdx];
@@ -302,7 +316,11 @@ static void fireStep(void)
         snareFlag = TRUE;
     }
     else if (section == SEC_DRIVE || section == SEC_HARD || section == SEC_MYTHIC)
+    {
         hatPhase = 0;
+        // offbeat 16ths ring open, downbeat 16ths tick closed - Konami shuffle
+        hatOpenFlag = (hatOpen & stepBit) ? TRUE : FALSE;
+    }
 }
 
 // ---- per-frame continuous processing -------------------------------------
@@ -365,10 +383,12 @@ fx:
         PSG_setEnvelope(3, 5 + snarePhase * 2);
         snarePhase++;
     }
-    else if (hatPhase < 2)
+    else if (hatPhase < (hatOpenFlag ? 4 : 2))
     {
+        // open hats ring longer and louder than the closed ticks
         PSG_setNoise(1, 0);
-        PSG_setEnvelope(3, 10 + hatPhase * 3);
+        u8 base = hatOpenFlag ? 8 : 11;
+        PSG_setEnvelope(3, base + hatPhase * 2);
         hatPhase++;
     }
     else

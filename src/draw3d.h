@@ -25,4 +25,7 @@ void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2);
 // TRUE when the projected triangle winds away from the camera
 u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3);
 
+// camera-space depth of a point (larger = farther) for painter sorting
+s16 d3_depth(const V3 *v);
+
 #endif

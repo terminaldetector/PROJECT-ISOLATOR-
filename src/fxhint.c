@@ -3,30 +3,30 @@
 
 u16 copperColors[COPPER_BANDS];
 
-static vu16 copIdx;
 static u16 copperOn = FALSE;
 static u32 cramCmd;
 
+// the VDP HV counter: the high byte is the current scanline
+#define CUR_LINE  ((*((vu16 *) 0xC00008)) >> 8)
+
+// vint-FREE copper: the band is derived from the live scanline every hblank,
+// so nothing ever writes a VDP port during vertical blank. this is what
+// keeps it from racing the software-bitmap flip DMA (which caused the
+// end-scene softlock when a vint callback touched the control port mid-flip).
 static HINTERRUPT_CALLBACK copperHInt(void)
 {
-    // one CRAM write fits comfortably in hblank
+    u16 band = CUR_LINE >> 3;
+    if (band >= COPPER_BANDS) band = COPPER_BANDS - 1;
     *((vu32 *) VDP_CTRL_PORT) = cramCmd;
-    *((vu16 *) VDP_DATA_PORT) = copperColors[(copIdx < COPPER_BANDS - 1) ? ++copIdx : copIdx];
-}
-
-static void copperVInt(void)
-{
-    copIdx = 0;
-    *((vu32 *) VDP_CTRL_PORT) = cramCmd;
-    *((vu16 *) VDP_DATA_PORT) = copperColors[0];
+    *((vu16 *) VDP_DATA_PORT) = copperColors[band];
 }
 
 void copper_enable(u16 palIndex)
 {
-    copIdx = 0;
     cramCmd = VDP_WRITE_CRAM_ADDR((u32) (palIndex * 2));
+    // prime the top band so line 0 is correct before the first hblank
+    PAL_setColor(palIndex, copperColors[0]);
     SYS_setHIntCallback(copperHInt);
-    SYS_setVIntCallback(copperVInt);
     VDP_setHIntCounter(7);
     VDP_setHInterrupt(TRUE);
     copperOn = TRUE;
@@ -37,7 +37,6 @@ void copper_disable(void)
     if (!copperOn) return;
     VDP_setHInterrupt(FALSE);
     SYS_setHIntCallback(NULL);
-    SYS_setVIntCallback(NULL);
     copperOn = FALSE;
 }
 
