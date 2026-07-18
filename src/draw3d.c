@@ -134,6 +134,22 @@ void bmp_disc(s16 cx, s16 cy, s16 r, u8 cA, u8 cB)
     }
 }
 
+void bmp_vgradRamp(s16 y0, s16 y1, const u8 *idx, u16 n)
+{
+    if (y1 <= y0 || n == 0) return;
+    if (y0 < 0) y0 = 0;
+    if (y1 > 160) y1 = 160;
+    u16 span = y1 - y0;
+    for (s16 y = y0; y < y1; y++)
+    {
+        u16 f = ((u16)(y - y0) * (n - 1) * 2) / span;   // 0 .. 2(n-1)
+        u16 lo = f >> 1;
+        u8 a = idx[lo];
+        u8 b = ((f & 1) && (lo + 1 < n)) ? idx[lo + 1] : a;
+        bmp_hspan(0, 255, y, (y & 1) ? BCOL2(a, b) : BCOL2(b, a));
+    }
+}
+
 u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3)
 {
     s32 cross = (s32)(x2 - x1) * (y3 - y1) - (s32)(y2 - y1) * (x3 - x1);

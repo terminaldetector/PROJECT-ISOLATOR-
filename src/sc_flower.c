@@ -102,8 +102,6 @@ void flower_init(void)
 
     fx_allBlack();
     VDP_setBackgroundColor(16);
-    copper_enable(16);                  // BMP background = CRAM 16
-    copper_gradient(0x0000, VCOL(0, 0, 2));
 
     snd_setMood(SND_AGONY);
 }
@@ -128,6 +126,13 @@ void flower_update(u16 t)
 
     u16 spin = (t >> 1) + (swing >> 1); // tilt into the swing
     d3_setCamera(28, spin, 210);
+
+    // ---- sky drawn into the bitmap: night -> burning dusk (indices morph
+    //      each frame, so the whole sky glows with the sunset) ----
+    {
+        static const u8 sky[6] = { 1, 1, 10, 11, 12, 13 };
+        bmp_vgradRamp(0, HORIZON, sky, 6);
+    }
 
     // ---- sunset backdrop ----
     if (t > 380)
@@ -224,22 +229,21 @@ void flower_update(u16 t)
 
     BMP_flip(1);
 
-    // ---- copper sky: night -> burning dusk -> ash, morphing every frame ----
+    // ---- sky ramp palette (indices 1,10,11,12,13): night -> burning dusk,
+    //      morphing every frame; the in-bitmap gradient reads these ----
     u16 warm = (t < 380) ? 0 : ((t - 380) >> 4);
     if (warm > 40) warm = 40;
-    u16 top = scaleCol(VCOL(warm > 24 ? 2 : 0, 0, 2 + (warm >> 5)), bf);
-    u16 mid = scaleCol(VCOL(2 + (warm >> 3), (warm >> 4), 3), bf);
-    u16 low = scaleCol(VCOL(3 + (warm >> 3), 1 + (warm >> 4), 1), bf);
-    copper_gradient3(top, mid, low, 10 + (warm >> 3));
+    PAL_setColor(16 + 1,  scaleCol(VCOL(warm > 24 ? 1 : 0, 0, 2), bf));
+    PAL_setColor(16 + 10, scaleCol(VCOL(1 + (warm >> 4), 0, 2), bf));
+    PAL_setColor(16 + 11, scaleCol(VCOL(3 + (warm >> 3), 1, 1), bf));
+    PAL_setColor(16 + 12, scaleCol(VCOL(5 + (warm >> 4), 2, 1), bf));
+    PAL_setColor(16 + 13, scaleCol(VCOL(7, 3 + (warm >> 4), 0), bf));
 
     // petals ride the full RGB wheel
     for (u16 i = 0; i < NPETAL; i++)
         PAL_setColor(16 + 2 + i, scaleCol(fx_hue((t >> 1) + (i << 5), 6), bf));
 
-    PAL_setColor(16 + 1, scaleCol(VCOL(1, 0, 2), bf));
     PAL_setColor(16 + 9, scaleCol(VCOL(1, 4, 2), bf));
-    PAL_setColor(16 + 12, scaleCol(VCOL(5, 2, 3), bf));
-    PAL_setColor(16 + 13, scaleCol(VCOL(7, 3, 0), bf));
     u16 sg = 6 - (t > 700 ? ((t - 700) / 90) : 0);
     if (sg > 6) sg = 0;
     PAL_setColor(16 + 14, scaleCol(VCOL(7, sg, sg >> 2), bf));

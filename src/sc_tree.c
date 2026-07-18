@@ -71,8 +71,6 @@ void tree_init(void)
 
     fx_allWhite();
     VDP_setBackgroundColor(16);
-    copper_enable(16);
-    copper_gradient(VCOL(7, 7, 7), VCOL(7, 7, 7));
 
     PAL_setColor(16 + 2, VCOL(3, 2, 0));    // bark
     PAL_setColor(16 + 3, VCOL(4, 3, 1));
@@ -98,17 +96,17 @@ void tree_update(u16 t)
     BMP_clear();
 
     // the white burns away into deep night over the first seconds
+    // (the BMP background is CRAM 16, which BMP_clear fills each frame)
     if (t < 140)
     {
         u16 v = 7 - (t / 20);
-        copper_gradient3(VCOL(v > 2 ? v - 2 : 0, v > 2 ? v - 2 : 0, v),
-                         VCOL(v >> 1, v >> 1, v), VCOL(0, 0, v >> 1), 12);
+        PAL_setColor(16, VCOL(v > 2 ? v - 2 : 0, v > 2 ? v - 2 : 0, v));
     }
-    else if ((t & 7) == 0)
+    else
     {
         // starry night: near-black indigo, breathing gently with the bar
         u16 breathe = (seq_step() < 8) ? 1 : 0;
-        copper_gradient3(VCOL(0, 0, 1 + breathe), VCOL(1, 0, 2), VCOL(0, 0, 1), 14);
+        PAL_setColor(16, VCOL(0, 0, 1 + breathe));
     }
 
     // stars

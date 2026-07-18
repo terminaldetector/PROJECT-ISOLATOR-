@@ -43,6 +43,8 @@ static const Chord progMain[4]  = { {A, CH_MIN}, {F, CH_MAJ}, {C, CH_MAJ}, {G, C
 static const Chord progAgony[4] = { {A, CH_MIN}, {F, CH_MAJ}, {D, CH_MIN}, {E, CH_DOM} };
 // mythic lament: Am - G - F - E
 static const Chord progMyth[4]  = { {A, CH_MIN}, {G, CH_MAJ}, {F, CH_MAJ}, {E, CH_DOM} };
+// hardcore / "hacker's lair": dark driving minor - Am - Am - Dm - E
+static const Chord progHard[4]  = { {A, CH_MIN}, {A, CH_MIN}, {D, CH_MIN}, {E, CH_DOM} };
 
 static const u8 chordTones[3][5] =
 {
@@ -58,6 +60,16 @@ static const u8 leadDrive[64] =
     N(5,F),HH,HH,N(5,E),  N(5,F),HH,N(5,G),HH,  N(5,A),HH,HH,N(5,F),  N(5,E),HH,N(5,C),HH,
     N(5,E),HH,HH,N(5,D),  N(5,C),HH,N(5,D),N(5,E),  N(5,G),HH,HH,N(5,E),  N(5,D),HH,N(5,C),HH,
     N(4,B),HH,HH,N(5,D),  N(5,G),HH,N(5,A),HH,  N(5,B),HH,N(5,A),N(5,G),  N(5,D),HH,N(4,B),HH,
+};
+
+// hardcore lead: a fast, aggressive 16th riff in A minor - relentless,
+// Contra Hard Corps "Hacker's Lair" energy
+static const u8 leadHard[64] =
+{
+    N(5,A),N(5,A),N(5,C),N(5,E), N(5,A),N(5,G),N(5,E),N(5,C), N(5,A),N(5,A),N(5,C),N(5,E), N(5,D),N(5,C),N(4,B),N(4,A),
+    N(5,A),N(5,A),N(5,C),N(5,E), N(5,A),N(5,G),N(5,E),N(5,C), N(5,E),N(5,F),N(5,E),N(5,C), N(5,A),N(4,B),N(5,C),N(5,D),
+    N(5,D),N(5,D),N(5,F),N(5,A), N(5,D),N(5,C),N(5,A),N(5,F), N(5,D),N(5,D),N(5,F),N(5,A), N(5,G),N(5,F),N(5,E),N(5,D),
+    N(5,E),N(5,E),N(5,G),N(5,B), N(5,E),N(5,Ds),N(5,B),N(5,G), N(5,E),N(5,F),N(5,E),N(5,D), N(5,Cs),N(5,D),N(5,E),N(5,Gs),
 };
 
 // agony lead: long crying notes, one gesture per bar
@@ -192,7 +204,7 @@ void seq_setSection(u8 sec)
                          kickMask = 0x0101; stabMask = 0x0010; break;
         case SEC_CALM:   prog = progMain;  leadPat = leadDrive; bassPat = bassCalm;
                          kickMask = 0; stabMask = 0; break;
-        case SEC_HARD:   prog = progMain;  leadPat = leadDrive; bassPat = bassHard;
+        case SEC_HARD:   prog = progHard;  leadPat = leadHard;  bassPat = bassHard;
                          kickMask = kickHard; stabMask = stabHard; break;
         default:         prog = progMain;  leadPat = leadDrive; bassPat = bassDrive;
                          kickMask = kickDrive; stabMask = stabDrive; break;
@@ -260,9 +272,10 @@ static void fireStep(void)
     }
     leadHist[step & 7] = (ln > 1) ? ln : leadHist[(step - 1) & 7];
 
-    // PSG0: sparkling echo of the lead, 3 steps late, one octave up
+    // PSG0: sparkling echo of the lead, 3 steps late, one octave up.
+    // skipped in HARD - the dense riff carries itself, an echo would muddy it
     u8 echo = leadHist[(step - 3) & 7];
-    if (echo > 1 && section != SEC_AGONY)
+    if (echo > 1 && section != SEC_AGONY && section != SEC_HARD)
     {
         u16 f = 440;
         u8 s = echo & 15, o = (echo >> 4) + 1;

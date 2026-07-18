@@ -38,8 +38,8 @@ void aleph_init(void)
 
     fx_allBlack();
     VDP_setBackgroundColor(16);
-    copper_enable(16);
-    copper_gradient3(VCOL(0, 0, 1), VCOL(1, 0, 2), VCOL(0, 0, 0), 8);
+    PAL_setColor(16 + 1, VCOL(1, 0, 2));    // deep indigo void (sky ramp)
+    PAL_setColor(16 + 2, VCOL(0, 0, 1));
 
     PAL_setColor(16 + 10, VCOL(7, 6, 0));   // the letter, gold
     PAL_setColor(16 + 11, VCOL(5, 4, 0));
@@ -53,6 +53,14 @@ void aleph_update(u16 t)
 {
     BMP_waitWhileFlipRequestPending();
     BMP_clear();
+
+    // the humming void: deep indigo bands drawn into the bitmap
+    {
+        u16 pulse = (seq_step() < 4) ? 1 : 0;
+        PAL_setColor(16 + 1, VCOL(1 + pulse, 0, 2 + pulse));
+        static const u8 voidRamp[4] = { 2, 1, 1, 2 };
+        bmp_vgradRamp(0, 160, voidRamp, 4);
+    }
 
     // the letter breathes: brightness rides the bar, flares on the kick
     u8 body = seq_isKick() ? 15 : 10;
@@ -79,13 +87,6 @@ void aleph_update(u16 t)
 
     BMP_flip(1);
 
-    // the void hums: deep indigo bands drifting with the bass
-    if ((t & 7) == 0)
-    {
-        u16 pulse = (seq_step() < 4) ? 1 : 0;
-        copper_gradient3(VCOL(0, 0, 1), VCOL(1 + pulse, 0, 2 + pulse), VCOL(0, 0, 0),
-                         8 + (SIN(t >> 2) >> 6));
-    }
     if (seq_isDownbeat()) PAL_setColor(16 + 10, VCOL(7, 7, 3));
     else if ((t & 15) == 8) PAL_setColor(16 + 10, VCOL(7, 6, 0));
 }

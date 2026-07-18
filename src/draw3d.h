@@ -26,6 +26,11 @@ void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2);
 void bmp_disc(s16 cx, s16 cy, s16 r, u8 cA, u8 cB);
 void bmp_ellipse(s16 cx, s16 cy, s16 rx, s16 ry, u8 cA, u8 cB);
 
+// full-width vertical gradient drawn INTO the bitmap from a ramp of palette
+// indices (top -> bottom), dithered between adjacent bands. this replaces the
+// HInt copper in BMP scenes, which hangs the software-bitmap flip.
+void bmp_vgradRamp(s16 y0, s16 y1, const u8 *idx, u16 n);
+
 // TRUE when the projected triangle winds away from the camera
 u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3);
 

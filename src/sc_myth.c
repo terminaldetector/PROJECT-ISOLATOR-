@@ -25,8 +25,7 @@ void myth_init(void)
 
     fx_allBlack();
     VDP_setBackgroundColor(16);
-    copper_enable(16);
-    copper_gradient3(VCOL(0, 0, 1), VCOL(1, 0, 1), VCOL(0, 0, 0), 20);
+    PAL_setColor(16, VCOL(0, 0, 1));        // night sky (BMP clear color)
 
     PAL_setColor(16 + 10, VCOL(7, 6, 2));
     PAL_setColor(16 + 11, VCOL(7, 4, 0));
@@ -113,12 +112,13 @@ void myth_update(u16 t)
         for (u16 i = 0; i < age >> 2 && i < 12; i++)
             BMP_setPixel(128 + (s16)(rnd() & 63) - 32, 144 - rnd_range(age), BCOL(11));
 
-        // the world catches: whiteout driven by the music's downbeats
+        // the world catches: whiteout via the BMP background (CRAM 16),
+        // which BMP_clear floods the screen with each frame
         if (age > 60)
         {
             u16 v = (age - 60) >> 3;
             if (v > 7) v = 7;
-            copper_gradient(VCOL(v, v > 0 ? v - 1 : 0, v > 1 ? v - 2 : 0), VCOL(v, v, v));
+            PAL_setColor(16, VCOL(v, v, v));
         }
     }
 

@@ -79,15 +79,15 @@ static void heatPalette(u16 age)
     PAL_setColor(16, VCOL(0, 0, 0));
 }
 
-// irradiated sky: violet night at the top burning to orange at the horizon,
-// pushed hotter right after the flash then slowly cooling
-static void skyGradient(u16 age)
+// irradiated sky, drawn INTO the bitmap (no HInt copper - that hangs the
+// software-bitmap flip): dark at the top burning to amber at the horizon,
+// hotter right after the flash
+static void skyGradient(u16 age, u16 kick)
 {
-    u16 heat = (age < 80) ? (80 - age) >> 2 : 0;   // 0..20 glow, fades
-    u16 midR = 3 + (heat >> 2);
-    if (midR > 7) midR = 7;
-    copper_gradient3(VCOL(1, 0, 2), VCOL(midR, 1, 1), VCOL(7, 3 + (heat >> 3), 0),
-                     14 - (heat >> 3));
+    // ramps use the fire palette itself, so no extra CRAM is spent
+    static const u8 calm[8] = { 1, 1, 3, 4, 5, 6, 7, 8 };
+    static const u8 hot[8]  = { 3, 4, 5, 6, 7, 8, 9, 11 };
+    bmp_vgradRamp(0, GY, (age < 90 || kick) ? hot : calm, 8);
 }
 
 void mushroom_update(u16 t)
@@ -100,8 +100,6 @@ void mushroom_update(u16 t)
             detonated = TRUE;
             heatPalette(0);
             VDP_setBackgroundColor(16);
-            copper_enable(16);
-            skyGradient(0);
             snd_boom();
         }
         return;
@@ -116,6 +114,9 @@ void mushroom_update(u16 t)
     s16 shake = 0;
     if (age < 40) shake = (SIN(age * 48) * (40 - age)) >> 10;
     s16 cx = CX0 + shake;
+
+    // irradiated sky behind everything
+    skyGradient(age, seq_isKick());
 
     // growth curves
     s16 stemH = age;
@@ -210,11 +211,9 @@ void mushroom_update(u16 t)
 
     BMP_flip(1);
 
-    // palette + sky evolve as the fireball cools
-    if ((age & 15) == 0) { heatPalette(age); skyGradient(age); }
+    // the fire ramp cools as the fireball ages
+    if ((age & 15) == 0) heatPalette(age);
 
-    // aftershocks ride the snare, sky flares on the kick
+    // aftershocks ride the snare
     if (seq_isSnare() && age > 120) snd_boom();
-    if (seq_isKick() && age < 200)
-        copper_gradient3(VCOL(3, 1, 3), VCOL(7, 3, 1), VCOL(7, 6, 2), 12);
 }
