@@ -3,18 +3,28 @@
 #include "timeline.h"
 #include "util.h"
 #include "fxpal.h"
+#include "fxhint.h"
 #include "draw3d.h"
 #include "sound.h"
 #include "seq.h"
 
-// scene 9: procedural nuclear bloom, beat-locked.
-// the detonation waits for the downbeat; the shockwave rides the bars,
-// aftershocks land on the snare. dithered fireball flesh.
+// scene 9: procedural nuclear bloom - a detailed, Gunstar-flavoured blast.
+// irradiated copper sky, a devastated city silhouette on the horizon, a
+// billowing cauliflower cloud built from stacked dithered lobes over a
+// full fire-ramp palette, screen shake and debris on the beat.
 
-#define GY 150
+#define GY   152
+#define CX0  128
 
 static u16 detonated;
 static u16 detFrame;
+
+// skyline: fixed silhouette of a ruined city, rim-lit by the blast
+static u8  skyH[24];
+
+// rising smoke lobes carry their own drift
+#define NLOBE 10
+static s16 lobeSeed[NLOBE];
 
 void mushroom_init(void)
 {
@@ -22,25 +32,62 @@ void mushroom_init(void)
     fx_allWhite();
     detonated = FALSE;
     detFrame = 0;
+
+    rnd_seed(0x4E42);
+    for (u16 i = 0; i < 24; i++)
+        skyH[i] = 6 + rnd_range(20);
+    for (u16 i = 0; i < NLOBE; i++)
+        lobeSeed[i] = rnd() & 255;
+
     snd_setMood(SND_HARD);
 }
 
+// the fire ramp: smoke -> maroon -> red -> orange -> gold -> yellow -> white,
+// cooling as the fireball ages
 static void heatPalette(u16 age)
 {
+    u16 cool = age >> 6;                          // 0..~10 over the scene
+    static const u16 base[16][3] =
+    {
+        { 0, 0, 1 },   // 0  night sky (copper overrides most of it)
+        { 1, 1, 1 },   // 1  dark smoke
+        { 2, 2, 2 },   // 2  smoke
+        { 3, 1, 1 },   // 3  ember maroon
+        { 4, 1, 0 },   // 4  dark red
+        { 5, 1, 0 },   // 5  red
+        { 6, 2, 0 },   // 6  red-orange
+        { 7, 3, 0 },   // 7  orange
+        { 7, 4, 0 },   // 8  amber
+        { 7, 5, 0 },   // 9  gold
+        { 7, 6, 1 },   // 10 warm yellow
+        { 7, 7, 2 },   // 11 yellow
+        { 7, 7, 4 },   // 12 pale yellow
+        { 7, 7, 6 },   // 13 cream
+        { 7, 7, 7 },   // 14 white
+        { 7, 7, 7 },   // 15 white core
+    };
     for (u16 i = 1; i < 16; i++)
     {
-        s16 heat = (15 - i) + 8 - (age >> 6);
-        if (heat < 0) heat = 0;
-        u16 r = heat > 4 ? 7 : heat + 2;
-        u16 g = heat > 8 ? 7 : heat >> 1;
-        u16 b = heat > 12 ? heat - 10 : 0;
-        if (r > 7) r = 7;
-        if (g > 7) g = 7;
-        if (b > 7) b = 7;
+        s16 r = base[i][0] - (cool >> 1);
+        s16 g = base[i][1] - cool;
+        s16 b = base[i][2];
+        if (r < 0) r = 0;
+        if (g < 0) g = 0;
+        if (b < 0) b = 0;
         PAL_setColor(16 + i, VCOL(r, g, b));
     }
-    PAL_setColor(16, 0x0000);
-    VDP_setBackgroundColor(16);
+    PAL_setColor(16, VCOL(0, 0, 0));
+}
+
+// irradiated sky: violet night at the top burning to orange at the horizon,
+// pushed hotter right after the flash then slowly cooling
+static void skyGradient(u16 age)
+{
+    u16 heat = (age < 80) ? (80 - age) >> 2 : 0;   // 0..20 glow, fades
+    u16 midR = 3 + (heat >> 2);
+    if (midR > 7) midR = 7;
+    copper_gradient3(VCOL(1, 0, 2), VCOL(midR, 1, 1), VCOL(7, 3 + (heat >> 3), 0),
+                     14 - (heat >> 3));
 }
 
 void mushroom_update(u16 t)
@@ -52,6 +99,9 @@ void mushroom_update(u16 t)
         {
             detonated = TRUE;
             heatPalette(0);
+            VDP_setBackgroundColor(16);
+            copper_enable(16);
+            skyGradient(0);
             snd_boom();
         }
         return;
@@ -62,73 +112,109 @@ void mushroom_update(u16 t)
 
     u16 age = detFrame++;
 
-    s16 hs = age;
-    if (hs > 92) hs = 92;
-    s16 sw = 8 + (age >> 3);
-    if (sw > 20) sw = 20;
-    s16 cr = 12 + (age >> 1);
-    if (cr > 58) cr = 58;
+    // screen shake from the shock, decaying
+    s16 shake = 0;
+    if (age < 40) shake = (SIN(age * 48) * (40 - age)) >> 10;
+    s16 cx = CX0 + shake;
 
-    s16 capY = GY - hs;
+    // growth curves
+    s16 stemH = age;
+    if (stemH > 96) stemH = 96;
+    s16 sw = 7 + (age >> 3);
+    if (sw > 18) sw = 18;
+    s16 cr = 14 + (age >> 1);
+    if (cr > 60) cr = 60;
+    s16 capY = GY - stemH;
 
-    bmp_lineSafe(0, GY, 255, GY, 3);
-
-    // stem: dithered column of fire
-    for (s16 x = -sw; x <= sw; x += 2)
+    // ---- devastated city silhouette on the horizon, rim-lit ----
+    for (u16 i = 0; i < 24; i++)
     {
-        u8 col = (x < -(sw >> 1) || x > (sw >> 1)) ? 5 : 12;
-        s16 wob = (SIN((age << 2) + (x << 3)) >> 6);
-        bmp_lineSafe(128 + x + wob, GY, 128 + x, capY + (cr >> 2), col);
+        s16 bx = i * 11 - 4;
+        s16 bh = skyH[i];
+        // buildings closer to ground zero are taller rubble
+        s16 dist = (i > 11) ? (i - 11) : (11 - i);
+        s16 h = bh - (dist < 6 ? (6 - dist) : 0);
+        if (h < 3) h = 3;
+        bmp_hspan(bx + shake, bx + 10 + shake, GY - 1, BCOL(2));
+        for (s16 yy = 0; yy < h; yy++)
+            bmp_hspan(bx + shake, bx + 9 + shake, GY - 2 - yy,
+                      (yy & 1) ? BCOL2(1, 3) : BCOL2(3, 1));
+        // blast-lit top edge
+        bmp_hspan(bx + shake, bx + 9 + shake, GY - 2 - h, BCOL(7));
     }
 
-    // cap: solid dithered dome, brighter core - real fireball flesh
-    for (s16 yy = -(cr >> 1); yy <= 0; yy += 1)
+    // ---- ground: scorched, rubble-flecked ----
+    for (s16 yy = 0; yy < 160 - GY; yy++)
+        bmp_hspan(0, 255, GY + yy, (yy & 1) ? BCOL2(3, 1) : BCOL2(1, 4));
+
+    // ---- stem: turbulent fire column, widening trumpet toward the cap ----
+    for (s16 yy = GY; yy > capY + (cr >> 2); yy--)
     {
-        s16 d = -yy;
-        s16 v = (cr >> 1) * (cr >> 1) - d * d;
-        s16 w = cr;
-        while ((w * w) >> 2 > v && w > 0) w--;
-        u8 inner = 12 - (d >> 3);
-        u8 outer = 6 + ((age >> 5) & 1);
-        bmp_hspan(128 - w, 128 + w, capY + yy,
-                  (yy & 1) ? BCOL2(inner, outer) : BCOL2(outer, inner));
-    }
-    // rolling rim
-    for (u16 i = 0; i < 16; i++)
-    {
-        u16 a1 = i << 3, a2 = (i + 1) << 3;
-        s16 rr = cr + (SIN((age << 1) + (i << 4)) >> 5);
-        bmp_lineSafe(128 + ((rr * COS(a1)) >> 8), capY - (((rr * SIN(a1)) >> 8) >> 1),
-                     128 + ((rr * COS(a2)) >> 8), capY - (((rr * SIN(a2)) >> 8) >> 1), 14);
+        s16 f = (GY - yy);
+        s16 wHere = sw + (f * sw) / (stemH + 1);    // flares upward
+        s16 wob = (SIN((age << 2) + (yy << 2)) >> 5);
+        s16 lx = cx - wHere + wob, rx = cx + wHere + wob;
+        // dithered fire: bright core, cooler edges
+        bmp_hspan(lx, rx, yy, (yy & 1) ? BCOL2(6, 9) : BCOL2(9, 6));
+        bmp_hspan(cx - (wHere >> 1) + wob, cx + (wHere >> 1) + wob, yy,
+                  (yy & 1) ? BCOL2(12, 11) : BCOL2(11, 12));
     }
 
-    // shockwave: a ring per bar, expanding with the music
-    u16 ringBase = (seq_bar() & 3) * 24;
+    // ---- billowing cauliflower cap: stacked dithered lobes ----
+    // a big central bloom plus a ring of rolling lobes around the crown
+    bmp_ellipse(cx, capY, cr, (cr * 3) / 4, 8, 6);
+    for (u16 i = 0; i < NLOBE; i++)
+    {
+        u16 a = (i * 256) / NLOBE;
+        s16 bulge = (SIN((age << 1) + lobeSeed[i]) >> 5);
+        s16 lr = (cr * 5) / 12 + bulge;
+        s16 lx = cx + ((( (cr * 3) / 4) * COS(a)) >> 8);
+        s16 ly = capY - (((cr / 2) * SIN(a)) >> 8);
+        // upper lobes hotter, lower/outer lobes cooler smoke
+        u8 hot = (SIN(a) > 40) ? 11 : 8;
+        u8 cool = (SIN(a) > 40) ? 9 : 5;
+        bmp_disc(lx, ly, lr, hot, cool);
+    }
+    // white-hot heart of the cloud
+    bmp_disc(cx, capY, cr >> 2, 15, 13);
+    // cap underside shadow
+    bmp_ellipse(cx, capY + (cr >> 2), (cr * 5) / 6, cr >> 2, 4, 3);
+
+    // ---- expanding shock rings, one per bar ----
+    u16 ringBase = (seq_bar() & 3) * 22;
     s16 srx = (age << 1) + ringBase;
     s16 sry = (age / 3) + (ringBase >> 3);
-    if (srx < 260)
-        for (u16 i = 0; i < 16; i++)
+    if (srx < 280)
+        for (u16 i = 0; i < 24; i++)
         {
-            u16 a1 = i << 4, a2 = (i + 1) << 4;
-            bmp_lineSafe(128 + ((srx * COS(a1)) >> 8), GY - ((sry * SIN(a1)) >> 8),
-                         128 + ((srx * COS(a2)) >> 8), GY - ((sry * SIN(a2)) >> 8), 15);
+            u16 a1 = (i * 256) / 24, a2 = ((i + 1) * 256) / 24;
+            bmp_lineSafe(cx + ((srx * COS(a1)) >> 8), GY - ((sry * SIN(a1)) >> 8),
+                         cx + ((srx * COS(a2)) >> 8), GY - ((sry * SIN(a2)) >> 8),
+                         (i & 1) ? 13 : 7);
         }
 
-    // debris storm
-    for (u16 i = 0; i < 6; i++)
+    // ---- debris: chunks arcing up with fiery trails ----
+    for (u16 i = 0; i < 10; i++)
     {
-        s16 ddx = (s16)(rnd() & 127) - 64;
-        s16 ddy = (s16)(rnd() & 63) - 40;
-        BMP_setPixel(128 + ddx, capY + ddy, BCOL(10 + (rnd() & 5)));
+        u16 ph = (age * 3 + i * 40) & 255;
+        s16 dx = ((s16)(lobeSeed[i % NLOBE] - 128) * ph) >> 9;
+        s16 dy = -((ph * (256 - ph)) >> 7);          // parabola up then down
+        s16 ex = cx + dx, ey = capY + 20 + dy;
+        bmp_lineSafe(ex, ey, ex - (dx >> 3), ey + 4, 8);
+        BMP_setPixel(ex, ey, BCOL(13));
     }
+    // sparks around the fireball
+    for (u16 i = 0; i < 8; i++)
+        BMP_setPixel(cx + (s16)(rnd() & 127) - 64, capY + (s16)(rnd() & 63) - 32,
+                     BCOL(11 + (rnd() & 4)));
 
     BMP_flip(1);
 
-    if ((age & 31) == 0) heatPalette(age);
+    // palette + sky evolve as the fireball cools
+    if ((age & 15) == 0) { heatPalette(age); skyGradient(age); }
 
-    // aftershocks ride the snare
+    // aftershocks ride the snare, sky flares on the kick
     if (seq_isSnare() && age > 120) snd_boom();
-    // white flicker on the kick - the sky still burns
-    if (seq_isKick()) PAL_setColor(16, VCOL(2, 2, 2));
-    else if ((t & 7) == 0) PAL_setColor(16, 0x0000);
+    if (seq_isKick() && age < 200)
+        copper_gradient3(VCOL(3, 1, 3), VCOL(7, 3, 1), VCOL(7, 6, 2), 12);
 }

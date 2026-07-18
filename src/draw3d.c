@@ -107,6 +107,33 @@ void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2)
         bmp_hspan(xl >> 8, x3, y3, (y3 & 1) ? odd : even);
 }
 
+void bmp_ellipse(s16 cx, s16 cy, s16 rx, s16 ry, u8 cA, u8 cB)
+{
+    if (rx < 1 || ry < 1) { BMP_setPixel(cx, cy, BCOL2(cA, cB)); return; }
+    s32 rx2 = (s32) rx * rx;
+    for (s16 yy = -ry; yy <= ry; yy++)
+    {
+        // half-width at this row: rx * sqrt(1 - yy^2/ry^2)
+        s32 t = rx2 - (rx2 * yy * yy) / ((s32) ry * ry);
+        s16 w = rx;
+        while (w > 0 && (s32) w * w > t) w--;
+        bmp_hspan(cx - w, cx + w, cy + yy, (yy & 1) ? BCOL2(cA, cB) : BCOL2(cB, cA));
+    }
+}
+
+void bmp_disc(s16 cx, s16 cy, s16 r, u8 cA, u8 cB)
+{
+    if (r < 1) { BMP_setPixel(cx, cy, BCOL2(cA, cB)); return; }
+    s32 r2 = (s32) r * r;
+    for (s16 yy = -r; yy <= r; yy++)
+    {
+        s32 t = r2 - (s32) yy * yy;
+        s16 w = r;
+        while (w > 0 && (s32) w * w > t) w--;
+        bmp_hspan(cx - w, cx + w, cy + yy, (yy & 1) ? BCOL2(cA, cB) : BCOL2(cB, cA));
+    }
+}
+
 u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3)
 {
     s32 cross = (s32)(x2 - x1) * (y3 - y1) - (s32)(y2 - y1) * (x3 - x1);

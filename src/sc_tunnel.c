@@ -5,12 +5,42 @@
 #include "fxpal.h"
 #include "draw3d.h"
 #include "sound.h"
+#include "seq.h"
 
-// scene 5: the fractal folds into a tunnel - rings fly at the camera
+// scene 5: the fractal folds into a tunnel - rings fly at the camera,
+// a living iridescent plasma sphere breathing at the vanishing point
 
 #define RINGS     8
 #define RING_SEG  8
 #define RING_R    120
+
+// the RGBV plasma core: concentric rainbow bands that cycle and blend,
+// a white-hot heart, and rays radiating outward that pulse on the beat
+static void plasmaSphere(s16 cx, s16 cy, s16 R, u16 t, u16 kick)
+{
+    // radial spectrum from the rim inward, dithered between neighbouring hues
+    for (s16 rr = R; rr > 0; rr -= 2)
+    {
+        u16 phase = (rr * 4) + (t << 1);
+        u8 h  = 1 + (phase % 14);
+        u8 h2 = 1 + ((phase + 4) % 14);
+        bmp_disc(cx, cy, rr, h, h2);
+    }
+    // white-hot heart, flaring on the kick
+    bmp_disc(cx, cy, 3 + (kick ? 3 : 0), 15, 14);
+
+    // radiating rays, length pulsing with the beat
+    s16 rayLen = R + 12 + (kick ? 16 : 0) + (SIN(t << 2) >> 4);
+    for (u16 i = 0; i < 12; i++)
+    {
+        u16 a = (i * 256) / 12 + (t << 1);
+        u8 col = 1 + ((i * 3 + (t >> 2)) % 14);
+        s16 x0 = cx + ((R * COS(a)) >> 8), y0 = cy - ((R * SIN(a)) >> 8);
+        s16 x1 = cx + ((rayLen * COS(a)) >> 8), y1 = cy - ((rayLen * SIN(a)) >> 8);
+        bmp_lineSafe(x0, y0, x1, y1, col);
+        BMP_setPixel(x1, y1, BCOL(15));
+    }
+}
 
 void tunnel_init(void)
 {
@@ -89,11 +119,15 @@ void tunnel_update(u16 t)
         havePrev = TRUE;
     }
 
-    // speed streaks from the center
+    // the living plasma sphere at the vanishing point - breathing radius
+    s16 R = 20 + (SIN(t << 2) >> 5) + (SIN(t) >> 6);
+    plasmaSphere(cx, cy, R, t, seq_isKick());
+
+    // speed streaks from the sphere outward
     for (u16 i = 0; i < 4; i++)
     {
         u16 a = rnd() & 255;
-        s16 r1 = 20 + (rnd() & 31);
+        s16 r1 = R + 4 + (rnd() & 31);
         s16 r2 = r1 + 30 + (rnd() & 31);
         bmp_lineSafe(cx + ((r1 * COS(a)) >> 8), cy - ((r1 * SIN(a)) >> 8),
                      cx + ((r2 * COS(a)) >> 8), cy - ((r2 * SIN(a)) >> 8), 15);

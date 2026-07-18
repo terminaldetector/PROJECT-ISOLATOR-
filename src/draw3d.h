@@ -22,6 +22,10 @@ void bmp_hspan(s16 x1, s16 x2, s16 y, u8 pattern);
 // (pass c1 == c2 for a solid fill)
 void bmp_fillTri(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3, u8 c1, u8 c2);
 
+// filled disc / flattened ellipse, checker-dithered between two palette colors
+void bmp_disc(s16 cx, s16 cy, s16 r, u8 cA, u8 cB);
+void bmp_ellipse(s16 cx, s16 cy, s16 rx, s16 ry, u8 cA, u8 cB);
+
 // TRUE when the projected triangle winds away from the camera
 u16 d3_backface(s16 x1, s16 y1, s16 x2, s16 y2, s16 x3, s16 y3);
 
