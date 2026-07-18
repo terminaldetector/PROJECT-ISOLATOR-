@@ -35,3 +35,22 @@ u16 rnd_range(u16 n)
 {
     return rnd() % n;
 }
+
+u16 isqrt32(u32 n)
+{
+    u32 res = 0;
+    u32 bit = 1UL << 30;         // highest even power of 4 <= max u32
+    while (bit > n) bit >>= 2;
+    while (bit != 0)
+    {
+        if (n >= res + bit)
+        {
+            n -= res + bit;
+            res = (res >> 1) + bit;
+        }
+        else
+            res >>= 1;
+        bit >>= 2;
+    }
+    return (u16) res;
+}

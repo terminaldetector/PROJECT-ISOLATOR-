@@ -24,31 +24,14 @@ static const u8 paths[22][2] =
     {8,9},{0,5},
 };
 
-static void disc(s16 cx, s16 cy, s16 r, u8 cA, u8 cB)
-{
-    for (s16 yy = -r; yy <= r; yy++)
-    {
-        s16 v = r * r - yy * yy;
-        s16 w = r;
-        while (w * w > v) w--;
-        bmp_hspan(cx - w, cx + w, cy + yy, (yy & 1) ? BCOL2(cA, cB) : BCOL2(cB, cA));
-    }
-}
-
 static void crescent(s16 cx, s16 cy, s16 r, u8 col)
 {
     for (s16 yy = -r; yy <= r; yy++)
     {
         s16 v = r * r - yy * yy;
-        s16 w = r;
-        while (w * w > v) w--;
+        s16 w = (v > 0) ? (s16) isqrt32((u32) v) : 0;
         s16 v2 = (r - 3) * (r - 3) - (yy - 2) * (yy - 2);
-        s16 w2 = 0;
-        if (v2 > 0)
-        {
-            w2 = r;
-            while (w2 * w2 > v2) w2--;
-        }
+        s16 w2 = (v2 > 0) ? (s16) isqrt32((u32) v2) : 0;
         // outer disc minus an offset inner disc = the crescent
         s16 xr = cx + w, xl = cx + w2 - 4;
         if (xl < cx - w) xl = cx - w;
@@ -134,7 +117,7 @@ void tree_update(u16 t)
         pillar(222, 12);
         u16 rise = (t - 200) >> 3;
         if (rise > 16) rise = 16;
-        disc(34, 46 - (rise >> 1), 10 + (rise >> 2), 13, 11);       // the sun
+        bmp_disc(34, 46 - (rise >> 1), 10 + (rise >> 2), 13, 11);   // the sun
         // sun rays
         for (u16 i = 0; i < 8; i++)
         {
@@ -160,7 +143,7 @@ void tree_update(u16 t)
         for (u16 s = 0; s < lit; s++)
         {
             u8 hot = (seq_isKick() && (seq_bar() % 10) == s) ? 15 : 10;
-            disc(sefX[s], sefY[s], 6, hot, 11);
+            bmp_disc(sefX[s], sefY[s], 6, hot, 11);
         }
     }
 

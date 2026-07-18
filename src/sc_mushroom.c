@@ -16,8 +16,13 @@
 #define GY   152
 #define CX0  128
 
-static u16 detonated;
+#define PH_WAIT  0
+#define PH_FLASH 1
+#define PH_CLOUD 2
+
+static u8  phase;
 static u16 detFrame;
+static u16 flashFrame;
 
 // skyline: fixed silhouette of a ruined city, rim-lit by the blast
 static u8  skyH[24];
@@ -29,9 +34,10 @@ static s16 lobeSeed[NLOBE];
 void mushroom_init(void)
 {
     demo_enterBMP();
-    fx_allWhite();
-    detonated = FALSE;
+    fx_allBlack();
+    phase = PH_WAIT;
     detFrame = 0;
+    flashFrame = 0;
 
     rnd_seed(0x4E42);
     for (u16 i = 0; i < 24; i++)
@@ -40,6 +46,35 @@ void mushroom_init(void)
         lobeSeed[i] = rnd() & 255;
 
     snd_setMood(SND_HARD);
+}
+
+// the pretty plasma sphere: a FIXED number of concentric dithered rainbow
+// bands from R inward, regardless of how large R grows. this keeps the
+// draw cost bounded even once the flash has smeared across the whole
+// screen - stacking a ring per unit of radius would make the frame cost
+// grow with R^2, which is exactly the kind of slowdown we just fixed
+// elsewhere with isqrt32.
+#define FLASH_RINGS 8
+static void plasmaBurst(s16 cx, s16 cy, s16 R, u16 fr)
+{
+    for (u16 k = 0; k < FLASH_RINGS; k++)
+    {
+        s16 rr = R - (s16)(((s32) R * k) / FLASH_RINGS);
+        if (rr <= 0) break;
+        u16 ph = (rr * 5) + (fr << 3);
+        u8 h1 = 1 + (ph % 14);
+        u8 h2 = 1 + ((ph + 4) % 14);
+        bmp_disc(cx, cy, rr, h1, h2);
+    }
+    bmp_disc(cx, cy, 3 + (fr >> 1), 15, 14);
+
+    // cracks of light tearing outward as it expands
+    for (u16 i = 0; i < 10; i++)
+    {
+        u16 a = ((i * 256) / 10) + (fr << 2);
+        s16 len = R + 10 + fr * 2;
+        bmp_lineSafe(cx, cy, cx + ((len * COS(a)) >> 8), cy - ((len * SIN(a)) >> 8), 14);
+    }
 }
 
 // the fire ramp: smoke -> maroon -> red -> orange -> gold -> yellow -> white,
@@ -92,15 +127,48 @@ static void skyGradient(u16 age, u16 kick)
 
 void mushroom_update(u16 t)
 {
-    // hold the blinding flash until the music says NOW
-    if (!detonated)
+    if (phase == PH_WAIT)
     {
+        // building anticipation: a faint trembling point of light at
+        // ground zero, waiting for the music to drop
+        BMP_waitWhileFlipRequestPending();
+        BMP_clear();
+        if (t > 4)
+        {
+            u8 glow = 2 + (t & 3);
+            bmp_disc(CX0, GY - 10, 2 + (t >> 5), glow, glow - 1);
+        }
+        BMP_flip(1);
+
         if ((t > 8 && seq_isDownbeat()) || t > 120)
         {
-            detonated = TRUE;
+            phase = PH_FLASH;
+            flashFrame = 0;
             heatPalette(0);
             VDP_setBackgroundColor(16);
             snd_boom();
+        }
+        return;
+    }
+
+    if (phase == PH_FLASH)
+    {
+        // the pretty sphere is born, then smears outward until it has
+        // swallowed the whole screen - THEN the mushroom grows from it
+        BMP_waitWhileFlipRequestPending();
+        BMP_clear();
+
+        u16 fr = flashFrame++;
+        s16 R = 4 + (s16)(((s32) fr * fr) / 3);
+        plasmaBurst(CX0, GY - 10, R, fr);
+
+        BMP_flip(1);
+
+        if (R > 220 || fr > 26)
+        {
+            phase = PH_CLOUD;
+            detFrame = 0;
+            fx_allWhite();
         }
         return;
     }
@@ -203,6 +271,21 @@ void mushroom_update(u16 t)
         s16 ex = cx + dx, ey = capY + 20 + dy;
         bmp_lineSafe(ex, ey, ex - (dx >> 3), ey + 4, 8);
         BMP_setPixel(ex, ey, BCOL(13));
+    }
+
+    // ---- lightning: jagged cracks of light off the fireball, more
+    //      dynamism as the cloud churns, tapering off as it cools ----
+    if (age < 400 && ((rnd() & 5) == 0 || seq_isKick()))
+    {
+        s16 x0 = cx, y0 = capY + (s16) rnd_range(cr > 4 ? cr : 4);
+        u16 a = rnd() & 255;
+        s16 len = 24 + (rnd() & 63);
+        s16 x1 = x0 + ((len * COS(a)) >> 8);
+        s16 y1 = y0 - ((len * SIN(a)) >> 8);
+        s16 mx = ((x0 + x1) >> 1) + (s16)(rnd() & 15) - 8;
+        s16 my = ((y0 + y1) >> 1) + (s16)(rnd() & 15) - 8;
+        bmp_lineSafe(x0, y0, mx, my, 15);
+        bmp_lineSafe(mx, my, x1, y1, 11);
     }
     // sparks around the fireball
     for (u16 i = 0; i < 8; i++)

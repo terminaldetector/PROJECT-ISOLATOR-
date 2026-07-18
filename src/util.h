@@ -14,6 +14,12 @@ void rnd_seed(u16 s);
 u16  rnd(void);
 u16  rnd_range(u16 n);
 
+// fast bit-by-bit integer square root (floor), O(1) fixed iterations -
+// no division, no linear search. Used everywhere a circle/ellipse fill
+// needs its half-width per scanline; this is the single biggest fps win
+// for the disc-heavy scenes (mushroom cap, tunnel sphere).
+u16 isqrt32(u32 n);
+
 // r,g,b in 0..7 -> VDP color word
 #define VCOL(r, g, b)  (((r) << 1) | ((g) << 5) | ((b) << 9))
 

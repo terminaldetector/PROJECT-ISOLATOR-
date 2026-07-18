@@ -31,6 +31,7 @@ void fm_on(u8 ch, u8 note12, u8 oct);                // note12: 0=C .. 11=B
 void fm_off(u8 ch);
 void fm_freq(u8 ch, u8 note12, u8 oct, s16 fnumOffset);
 void fm_rawFreq(u8 ch, u16 fnum, u8 block);
+u16  fm_fnumOf(u8 note12);       // base fnum for a semitone - for portamento math
 void fm_lfo(u8 speed);                               // 0 = off, 1..8 -> LFO on
 void fm_vibrato(u8 ch, u8 fms);                      // per-channel LFO depth 0..7
 void fm_allOff(void);

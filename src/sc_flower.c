@@ -156,8 +156,7 @@ void flower_update(u16 t)
                 if (d < 0) d = -d;
                 if (d > r) continue;
                 s16 v = r * r - d * d;
-                s16 w = r;
-                while (w * w > v) w--;
+                s16 w = (v > 0) ? (s16) isqrt32((u32) v) : 0;
                 // dithered limb, solid core
                 bmp_hspan(128 - w, 128 + w, yy, (yy & 1) ? BCOL(14) : BCOL2(14, 13));
             }

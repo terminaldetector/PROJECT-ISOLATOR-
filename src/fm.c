@@ -13,25 +13,28 @@ static const u16 fnums[12] =
 
 const FMPatch fmBass =
 {
-    .alg = 3, .fb = 6,
-    .dtmul = { 0x01, 0x12, 0x01, 0x01 },
-    .tl    = { 28,   38,   20,   6 },
+    // acid growl: pushed feedback and gritty modulator detune, a snappy
+    // squelching envelope - the Jesper Kyd / Red Zone signature
+    .alg = 3, .fb = 7,
+    .dtmul = { 0x35, 0x22, 0x02, 0x01 },
+    .tl    = { 30,   36,   26,   4 },
     .rsar  = { 0x9F, 0x9F, 0x9F, 0x9F },
-    .d1r   = { 0x0E, 0x10, 0x0C, 0x0A },
-    .d2r   = { 0x04, 0x04, 0x04, 0x02 },
-    .slrr  = { 0x2A, 0x2A, 0x2A, 0x4A },
+    .d1r   = { 0x0C, 0x0E, 0x0A, 0x09 },
+    .d2r   = { 0x05, 0x05, 0x05, 0x03 },
+    .slrr  = { 0x36, 0x36, 0x36, 0x56 },
 };
 
 const FMPatch fmBrass =
 {
-    // punchier, brighter brass stab - the heroic Konami hit
+    // rave stab: instant attack, hard fast decay - a gated chord hit
+    // rather than a swelling brass note
     .alg = 4, .fb = 6,
-    .dtmul = { 0x21, 0x11, 0x51, 0x11 },
-    .tl    = { 26,   6,    28,   4 },
-    .rsar  = { 0x9D, 0x9F, 0x9D, 0x9F },
-    .d1r   = { 0x0A, 0x08, 0x0A, 0x08 },
-    .d2r   = { 0x03, 0x03, 0x03, 0x03 },
-    .slrr  = { 0x38, 0x49, 0x38, 0x49 },
+    .dtmul = { 0x25, 0x12, 0x55, 0x12 },
+    .tl    = { 22,   4,    24,   2 },
+    .rsar  = { 0x9F, 0x9F, 0x9F, 0x9F },
+    .d1r   = { 0x0E, 0x0C, 0x0E, 0x0C },
+    .d2r   = { 0x04, 0x04, 0x04, 0x04 },
+    .slrr  = { 0x4A, 0x5B, 0x4A, 0x5B },
 };
 
 const FMPatch fmLead =
@@ -70,7 +73,8 @@ const FMPatch fmPad =
 
 const FMPatch fmKick =
 {
-    .alg = 4, .fb = 6,
+    // industrial punch: max feedback for a harder click on the transient
+    .alg = 4, .fb = 7,
     .dtmul = { 0x00, 0x00, 0x10, 0x00 },
     .tl    = { 26,   4,    30,   6 },
     .rsar  = { 0x9F, 0x9F, 0x9F, 0x9F },
@@ -149,6 +153,11 @@ void fm_rawFreq(u8 ch, u16 fnum, u8 block)
     u8 c = ch % 3;
     YM2612_writeReg(part, 0xA4 + c, ((block & 7) << 3) | ((fnum >> 8) & 7));
     YM2612_writeReg(part, 0xA0 + c, fnum & 0xFF);
+}
+
+u16 fm_fnumOf(u8 note12)
+{
+    return fnums[note12 % 12];
 }
 
 void fm_freq(u8 ch, u8 note12, u8 oct, s16 fnumOffset)

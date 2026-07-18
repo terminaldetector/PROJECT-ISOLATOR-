@@ -63,21 +63,8 @@ static void emblem(s16 cx, s16 cy, s16 r, u16 rot, u16 eyeOpen, u8 col, u8 eyeCo
     s16 ir = ry >> 1;
     if (ir > 2)
     {
-        for (s16 yy = -ir; yy <= ir; yy++)
-        {
-            s16 v = ir * ir - yy * yy;
-            s16 w = ir;
-            while (w * w > v) w--;
-            bmp_hspan(cx - w, cx + w, ey + yy, (yy & 1) ? BCOL2(4, 15) : BCOL2(15, 4));
-        }
-        s16 pr = ir >> 1;
-        for (s16 yy = -pr; yy <= pr; yy++)
-        {
-            s16 v = pr * pr - yy * yy;
-            s16 w = pr;
-            while (w * w > v) w--;
-            bmp_hspan(cx - w, cx + w, ey + yy, BCOL(0));
-        }
+        bmp_disc(cx, ey, ir, 15, 4);
+        bmp_disc(cx, ey, ir >> 1, 0, 0);
     }
 }
 

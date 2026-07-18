@@ -92,19 +92,33 @@ static const u8 leadMyth[64] =
 
 // bass groove as semitone offsets from the chord root (oct 2), 0xFF = rest
 static const u8 bassDrive[16] = { 0,0,12,0, 0,12,0,0, 0,0,12,0, 7,7,10,10 };
-// hardcore: a relentless pumping 16th octave line - the Contra Hard Corps engine
-static const u8 bassHard[16]  = { 0,12,0,12, 0,12,0,12, 0,12,0,12, 7,7,10,12 };
+// acid house pulse: octave plucks broken up by same-register glides -
+// the Jesper Kyd / Red Zone squelch. paired with bassGlideHard below.
+static const u8 bassHard[16]  = { 0,12, 0, 3,  0,12, 3, 7,  0,12, 0, 3,  7,10, 7, 3 };
 static const u8 bassCalm[16]  = { 0,0xFF,0xFF,0xFF, 0xFF,0xFF,0xFF,0xFF, 12,0xFF,0xFF,0xFF, 0xFF,0xFF,0xFF,0xFF };
 static const u8 bassMyth[16]  = { 0,0xFF,0xFF,0xFF, 12,0xFF,0xFF,0xFF, 0,0xFF,0xFF,0xFF, 12,0xFF,7,0xFF };
+
+// glide flags: 1 = this step's bass note is portamento-slid into from the
+// previous one (only takes effect when both land in the same octave
+// register - see fireStep). 0 = hard-retriggered pluck.
+static const u8 bassGlideHard[16]  = { 0,0,0,1, 0,0,1,1, 0,0,0,1, 1,1,1,0 };
+static const u8 bassGlideDrive[16] = { 0,0,0,0, 0,0,0,0, 0,0,0,0, 1,0,1,0 };
 
 // drum masks per section: bit set = event on that step
 static const u16 kickDrive = 0x1111;    // four on the floor
 static const u16 kickHard  = 0x5555;    // doubled - the hardcore
 static const u16 snareMask = 0x1010;    // backbeat 4 & 12
-static const u16 stabDrive = 0x4210;    // syncopated brass hits
+static const u16 stabDrive = 0x4210;    // syncopated stab hits
 static const u16 stabHard  = 0x4444;
-// open-hat accents (offbeat 16ths) for the driving Konami shuffle
+// open-hat accents (offbeat 16ths) for the driving shuffle
 static const u16 hatOpen   = 0xAAAA;
+// PSG1 rave gate: a pedal tone chopped on/off, the trance-gate texture
+static const u16 gateHard  = 0xDDDD;
+static const u16 gateDrive = 0x9999;
+
+// shared note -> Hz table for the PSG channels (rough equal temperament,
+// A4 reference octave 4)
+static const u16 noteHz[12] = { 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494 };
 
 // --------------------------------------------------------------------------
 
@@ -118,9 +132,18 @@ static u16 snarePhase = 99, hatPhase = 99;
 static u16 hatOpenFlag;
 static u8  leadHist[8];
 
+// acid bass portamento state
+static s16 bassFnumCur;
+static u8  bassBlockCur = 2;
+static s16 bassGlideDelta;
+static u8  bassGlideLeft;
+static u8  bassHeld;
+
 static const Chord *prog;
 static const u8 *leadPat;
 static const u8 *bassPat;
+static const u8 *bassGlidePat;      // NULL = never glide, always retrigger
+static u16 gateMask;                // 0 = PSG1 rave gate silent this section
 static u16 kickMask, stabMask;
 
 static void loadSectionPatches(void)
@@ -196,6 +219,9 @@ void seq_setSection(u8 sec)
     // half-time feel for the slow ones
     stepLen = (sec == SEC_AGONY || sec == SEC_MYTHIC) ? 9 : (sec == SEC_HARD ? 5 : 6);
 
+    bassGlidePat = NULL;
+    gateMask = 0;
+
     switch (sec)
     {
         case SEC_AGONY:  prog = progAgony; leadPat = leadAgony; bassPat = bassCalm;
@@ -205,15 +231,19 @@ void seq_setSection(u8 sec)
         case SEC_CALM:   prog = progMain;  leadPat = leadDrive; bassPat = bassCalm;
                          kickMask = 0; stabMask = 0; break;
         case SEC_HARD:   prog = progHard;  leadPat = leadHard;  bassPat = bassHard;
-                         kickMask = kickHard; stabMask = stabHard; break;
+                         kickMask = kickHard; stabMask = stabHard;
+                         bassGlidePat = bassGlideHard; gateMask = gateHard; break;
         default:         prog = progMain;  leadPat = leadDrive; bassPat = bassDrive;
-                         kickMask = kickDrive; stabMask = stabDrive; break;
+                         kickMask = kickDrive; stabMask = stabDrive;
+                         bassGlidePat = bassGlideDrive; gateMask = gateDrive; break;
     }
 
     loadSectionPatches();
     step = 0;
     bar = 0;
     frameInStep = 0;
+    bassHeld = FALSE;
+    bassGlideLeft = 0;
 }
 
 void seq_boom(void)
@@ -231,13 +261,31 @@ static void fireStep(void)
     u16 stepBit = 1 << step;
     u16 patIdx = (barIdx << 4) | step;
 
-    // BASS (FM0) + sub square (PSG2)
+    // BASS (FM0) + sub square (PSG2). in DRIVE/HARD, same-register steps
+    // marked in bassGlidePat portamento-slide into place instead of being
+    // retriggered - the acid squelch.
     u8 bofs = bassPat[step];
     if (bofs != 0xFF && section != SEC_CALM)
     {
         u8 semi = ch->root + (bofs % 12);
         u8 oct = 2 + (bofs / 12) + (semi > 11 ? 1 : 0);
-        fm_on(0, semi % 12, oct);
+        u8 note = semi % 12;
+        u8 wantGlide = bassHeld && bassGlidePat && bassGlidePat[step] && oct == bassBlockCur;
+
+        if (wantGlide)
+        {
+            s16 target = (s16) fm_fnumOf(note);
+            bassGlideDelta = (target - bassFnumCur) / (s16) stepLen;
+            bassGlideLeft = stepLen;
+        }
+        else
+        {
+            fm_on(0, note, oct);
+            bassFnumCur = (s16) fm_fnumOf(note);
+            bassBlockCur = oct;
+            bassGlideLeft = 0;
+            bassHeld = TRUE;
+        }
         PSG_setFrequency(2, 55 + ch->root * 3);
         PSG_setEnvelope(2, 8);
     }
@@ -250,6 +298,15 @@ static void fireStep(void)
     {
         PSG_setFrequency(2, 55 + ch->root * 3);
         PSG_setEnvelope(2, (step & 1) ? 7 : 4);
+    }
+
+    // PSG1: the rave gate - a pedal fifth chopped on/off against the mask,
+    // the trance-gate texture under the acid bass
+    if (gateMask)
+    {
+        u8 gnote = (ch->root + 7) % 12;
+        PSG_setFrequency(1, noteHz[gnote] << 1);
+        PSG_setEnvelope(1, (gateMask & stepBit) ? 6 : 15);
     }
 
     // LEAD (FM1 + FM2 detuned unison), echo history for PSG0
@@ -273,15 +330,13 @@ static void fireStep(void)
     leadHist[step & 7] = (ln > 1) ? ln : leadHist[(step - 1) & 7];
 
     // PSG0: sparkling echo of the lead, 3 steps late, one octave up.
-    // skipped in HARD - the dense riff carries itself, an echo would muddy it
+    // skipped in HARD - the rave gate + acid bass already fill that space
     u8 echo = leadHist[(step - 3) & 7];
     if (echo > 1 && section != SEC_AGONY && section != SEC_HARD)
     {
-        u16 f = 440;
         u8 s = echo & 15, o = (echo >> 4) + 1;
-        // quick integer note->Hz: A4=440 reference, rough equal temper walk
-        static const u16 hz[12] = { 262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494 };
-        f = hz[s] << (o > 4 ? (o - 4) : 0);
+        u16 f = noteHz[s];
+        f = f << (o > 4 ? (o - 4) : 0);
         if (o < 4) f >>= (4 - o);
         PSG_setFrequency(0, f);
         PSG_setEnvelope(0, 11);
@@ -366,6 +421,15 @@ void seq_tick(void)
     }
 
 fx:
+    // acid bass portamento: glide the held note toward its target over
+    // the remaining frames of this step
+    if (bassGlideLeft)
+    {
+        bassFnumCur += bassGlideDelta;
+        fm_rawFreq(0, (u16) bassFnumCur, bassBlockCur);
+        bassGlideLeft--;
+    }
+
     // kick pitch drop - the FM thump
     if (kickPhase < 6)
     {
