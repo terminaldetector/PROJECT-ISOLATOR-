@@ -43,8 +43,9 @@ static const Chord progMain[4]  = { {A, CH_MIN}, {F, CH_MAJ}, {C, CH_MAJ}, {G, C
 static const Chord progAgony[4] = { {A, CH_MIN}, {F, CH_MAJ}, {D, CH_MIN}, {E, CH_DOM} };
 // mythic lament: Am - G - F - E
 static const Chord progMyth[4]  = { {A, CH_MIN}, {G, CH_MAJ}, {F, CH_MAJ}, {E, CH_DOM} };
-// hardcore / "hacker's lair": dark driving minor - Am - Am - Dm - E
-static const Chord progHard[4]  = { {A, CH_MIN}, {A, CH_MIN}, {D, CH_MIN}, {E, CH_DOM} };
+// hardcore / cyberpunk techno: a hypnotic two-chord vamp, mostly Am with
+// a one-bar Dm lift every fourth bar - direct, repetitive, Hangar-simple
+static const Chord progHard[4]  = { {A, CH_MIN}, {A, CH_MIN}, {A, CH_MIN}, {D, CH_MIN} };
 
 static const u8 chordTones[3][5] =
 {
@@ -62,14 +63,16 @@ static const u8 leadDrive[64] =
     N(4,B),HH,HH,N(5,D),  N(5,G),HH,N(5,A),HH,  N(5,B),HH,N(5,A),N(5,G),  N(5,D),HH,N(4,B),HH,
 };
 
-// hardcore lead: a fast, aggressive 16th riff in A minor - relentless,
-// Contra Hard Corps "Hacker's Lair" energy
+// hardcore lead: one simple driving hook, looped bar after bar - no
+// composed melody, just the hypnotic repetition that carries a Kyd/Red
+// Zone style cyberpunk techno track. the 4th bar shifts the same shape
+// up to follow the Dm lift.
 static const u8 leadHard[64] =
 {
-    N(5,A),N(5,A),N(5,C),N(5,E), N(5,A),N(5,G),N(5,E),N(5,C), N(5,A),N(5,A),N(5,C),N(5,E), N(5,D),N(5,C),N(4,B),N(4,A),
-    N(5,A),N(5,A),N(5,C),N(5,E), N(5,A),N(5,G),N(5,E),N(5,C), N(5,E),N(5,F),N(5,E),N(5,C), N(5,A),N(4,B),N(5,C),N(5,D),
-    N(5,D),N(5,D),N(5,F),N(5,A), N(5,D),N(5,C),N(5,A),N(5,F), N(5,D),N(5,D),N(5,F),N(5,A), N(5,G),N(5,F),N(5,E),N(5,D),
-    N(5,E),N(5,E),N(5,G),N(5,B), N(5,E),N(5,Ds),N(5,B),N(5,G), N(5,E),N(5,F),N(5,E),N(5,D), N(5,Cs),N(5,D),N(5,E),N(5,Gs),
+    N(5,A),HH,N(5,C),HH, N(5,E),HH,N(5,C),HH, N(5,A),HH,N(5,G),HH, N(5,E),HH,HH,HH,
+    N(5,A),HH,N(5,C),HH, N(5,E),HH,N(5,C),HH, N(5,A),HH,N(5,G),HH, N(5,E),HH,HH,HH,
+    N(5,A),HH,N(5,C),HH, N(5,E),HH,N(5,C),HH, N(5,A),HH,N(5,G),HH, N(5,E),HH,HH,HH,
+    N(5,D),HH,N(5,F),HH, N(5,A),HH,N(5,F),HH, N(5,D),HH,N(5,C),HH, N(5,A),HH,HH,HH,
 };
 
 // agony lead: long crying notes, one gesture per bar
@@ -125,7 +128,7 @@ static const u16 noteHz[12] = { 262, 277, 294, 311, 330, 349, 370, 392, 415, 440
 static u8  section = SEC_OFF;
 static u16 frameInStep, stepLen;
 static u16 step, bar;
-static u16 kickFlag, snareFlag, downbeatFlag;
+static u16 kickFlag, snareFlag, downbeatFlag, halfbarFlag;
 static u16 kickPhase = 99, tomPhase = 99;
 static u16 boomTimer;
 static u16 snarePhase = 99, hatPhase = 99;
@@ -407,6 +410,7 @@ void seq_tick(void)
     kickFlag = FALSE;
     snareFlag = FALSE;
     downbeatFlag = FALSE;
+    halfbarFlag = FALSE;
 
     if (section == SEC_OFF)
     {
@@ -417,6 +421,7 @@ void seq_tick(void)
     if (frameInStep == 0)
     {
         if (step == 0) downbeatFlag = TRUE;
+        if (step == 8) halfbarFlag = TRUE;
         fireStep();
     }
     if (++frameInStep >= stepLen)
@@ -499,3 +504,4 @@ u16 seq_bar(void)        { return bar; }
 u16 seq_isKick(void)     { return kickFlag; }
 u16 seq_isSnare(void)    { return snareFlag; }
 u16 seq_isDownbeat(void) { return downbeatFlag; }
+u16 seq_isHalfbar(void)  { return halfbarFlag; }

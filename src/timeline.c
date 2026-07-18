@@ -22,8 +22,8 @@ static const Scene scenes[] =
     { mushroom_init,   mushroom_update,   660 },   // procedural nuke
     { rain_init,       rain_update,       600 },   // digital rain
     { finale_init,     finale_update,     980 },   // breakdown + credits
-    { flower_init,     flower_update,    1150 },   // falling flower epilogue
-    { tree_init,       tree_update,      1100 },   // the tree of life
+    { flower_init,     flower_update,     900 },   // falling flower epilogue
+    { tree_init,       tree_update,       850 },   // the tree of life
     { aleph_init,      aleph_update,      700 },   // aleph
     { myth_init,       myth_update,       900 },   // the spark - MYTH
 };

@@ -97,6 +97,13 @@ static void mengerCube(u16 t)
         if (!d3_project(&corners[i], &sx[i], &sy[i])) ok = FALSE;
     if (!ok) return;
 
+    // full recursive carving (depth 2, ~18 fillTri) is expensive; giving
+    // every visible face that treatment every frame was the dominant
+    // cost of this scene. only the first visible face each frame gets
+    // the deep carve - the other one or two get a single depth-1 hole.
+    // the cube keeps rotating, so every face gets its turn at full detail
+    // over time, and the difference isn't obvious at a glance.
+    u16 detailGiven = FALSE;
     for (u16 f = 0; f < 6; f++)
     {
         const u8 *q = faces[f];
@@ -109,7 +116,8 @@ static void mengerCube(u16 t)
 
         s16 ffx[4] = { sx[q[0]], sx[q[1]], sx[q[2]], sx[q[3]] };
         s16 ffy[4] = { sy[q[0]], sy[q[1]], sy[q[2]], sy[q[3]] };
-        carpet(ffx, ffy, 2);
+        carpet(ffx, ffy, detailGiven ? 1 : 2);
+        detailGiven = TRUE;
 
         for (u16 e = 0; e < 4; e++)
             bmp_lineSafe(ffx[e], ffy[e], ffx[(e + 1) & 3], ffy[(e + 1) & 3], 15);

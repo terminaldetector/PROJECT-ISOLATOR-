@@ -42,7 +42,11 @@ static const u8 faceShade[5][2] =
     { 7, 6 },           // roof: solid bright
 };
 
-static void drawBuilding(const Building *b, u8 lit)
+// solid: full dithered face fill (nearby towers). when FALSE, only the
+// neon wireframe is drawn - distant towers read fine as outlines and
+// this is what keeps a full 10-building skyline off its knees, since
+// the fill cost was the dominant expense once the city is fully built.
+static void drawBuilding(const Building *b, u8 lit, u16 solid)
 {
     V3 v[8];
     s16 px[8], py[8];
@@ -54,38 +58,41 @@ static void drawBuilding(const Building *b, u8 lit)
         if (!d3_project(&v[i], &px[i], &py[i])) return;
     }
 
-    // sort the 5 faces far -> near by centroid depth
-    s16 fd[5];
-    u8 ord[5];
-    for (u16 f = 0; f < 5; f++)
+    if (solid)
     {
-        const u8 *q = faceIdx[f];
-        V3 c;
-        c.x = (v[q[0]].x + v[q[1]].x + v[q[2]].x + v[q[3]].x) >> 2;
-        c.y = (v[q[0]].y + v[q[1]].y + v[q[2]].y + v[q[3]].y) >> 2;
-        c.z = (v[q[0]].z + v[q[1]].z + v[q[2]].z + v[q[3]].z) >> 2;
-        fd[f] = d3_depth(&c);
-        ord[f] = f;
-    }
-    for (u16 i = 1; i < 5; i++)
-    {
-        u8 k = ord[i];
-        s16 d = fd[k];
-        s16 j = i;
-        while (j > 0 && fd[ord[j - 1]] < d) { ord[j] = ord[j - 1]; j--; }
-        ord[j] = k;
+        // sort the 5 faces far -> near by centroid depth
+        s16 fd[5];
+        u8 ord[5];
+        for (u16 f = 0; f < 5; f++)
+        {
+            const u8 *q = faceIdx[f];
+            V3 c;
+            c.x = (v[q[0]].x + v[q[1]].x + v[q[2]].x + v[q[3]].x) >> 2;
+            c.y = (v[q[0]].y + v[q[1]].y + v[q[2]].y + v[q[3]].y) >> 2;
+            c.z = (v[q[0]].z + v[q[1]].z + v[q[2]].z + v[q[3]].z) >> 2;
+            fd[f] = d3_depth(&c);
+            ord[f] = f;
+        }
+        for (u16 i = 1; i < 5; i++)
+        {
+            u8 k = ord[i];
+            s16 d = fd[k];
+            s16 j = i;
+            while (j > 0 && fd[ord[j - 1]] < d) { ord[j] = ord[j - 1]; j--; }
+            ord[j] = k;
+        }
+
+        // draw only the 3 nearest faces - exactly the visible ones for a box
+        for (u16 s = 2; s < 5; s++)
+        {
+            const u8 *q = faceIdx[ord[s]];
+            u8 cA = faceShade[ord[s]][0], cB = faceShade[ord[s]][1];
+            bmp_fillTri(px[q[0]], py[q[0]], px[q[1]], py[q[1]], px[q[2]], py[q[2]], cA, cB);
+            bmp_fillTri(px[q[0]], py[q[0]], px[q[2]], py[q[2]], px[q[3]], py[q[3]], cA, cB);
+        }
     }
 
-    // draw only the 3 nearest faces - exactly the visible ones for a box
-    for (u16 s = 2; s < 5; s++)
-    {
-        const u8 *q = faceIdx[ord[s]];
-        u8 cA = faceShade[ord[s]][0], cB = faceShade[ord[s]][1];
-        bmp_fillTri(px[q[0]], py[q[0]], px[q[1]], py[q[1]], px[q[2]], py[q[2]], cA, cB);
-        bmp_fillTri(px[q[0]], py[q[0]], px[q[2]], py[q[2]], px[q[3]], py[q[3]], cA, cB);
-    }
-
-    // neon edge accents over the solid mass
+    // neon edge accents - always drawn, solid or not
     bmp_lineSafe(px[4], py[4], px[5], py[5], lit);
     bmp_lineSafe(px[5], py[5], px[7], py[7], lit);
     bmp_lineSafe(px[7], py[7], px[6], py[6], lit);
@@ -174,7 +181,9 @@ void city_update(u16 t)
         u8 lit = 2;
         if (i == built - 1 && built < MAX_B)
             lit = ((t & 4) ? 15 : 4);      // the newest tower flickers neon
-        drawBuilding(&bld[i], lit);
+        // the nearer half gets full solid walls, the farther half is
+        // wireframe only - an easy win once all 10 towers are standing
+        drawBuilding(&bld[i], lit, s >= built / 2);
     }
 
     // the scan beam answers the snare

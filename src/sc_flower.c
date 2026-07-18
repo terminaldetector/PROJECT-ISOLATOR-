@@ -112,12 +112,13 @@ void flower_update(u16 t)
     BMP_clear();
 
     u16 bf = 7;
-    if (t > 1000) bf = 7 - ((t - 1000) / 22);
+    if (t > 700) bf = 7 - ((t - 700) / 16);
     if (bf > 7) bf = 0;
 
     // ---- Ran's fall: slow vertical drift with a pendulum swing ----
-    // the flower sinks at ~8 px/sec, swaying; rotation follows the sway
-    fallY += 40 + (SIN(t) >> 4);
+    // the flower sinks and sways, reaching the water well before the
+    // (shortened) scene ends
+    fallY += 48 + (SIN(t) >> 4);
     s16 cy = (fallY >> 8);
     if (cy > 122) cy = 122;
     s16 swing = SIN(t >> 1) >> 2;       // +-16 px pendulum
@@ -135,9 +136,9 @@ void flower_update(u16 t)
     }
 
     // ---- sunset backdrop ----
-    if (t > 380)
+    if (t > 250)
     {
-        u16 rise = (t - 380) >> 2;
+        u16 rise = (t - 250) >> 2;
         if (rise > 60) rise = 60;
 
         bmp_lineSafe(0, HORIZON, 255, HORIZON, 12);
@@ -145,9 +146,9 @@ void flower_update(u16 t)
         for (s16 y = HORIZON + 2; y < 160; y += 4)
             bmp_hspan(60 - (y - HORIZON), 196 + (y - HORIZON), y, BCOL2(1, 0));
 
-        if (t > 450)
+        if (t > 320)
         {
-            s16 sunCy = 76 + ((t - 450) >> 3);
+            s16 sunCy = 76 + ((t - 320) >> 3);
             s16 r = 30 + ((sunPulse > 0) ? 2 : 0);
             if (sunPulse) sunPulse--;
             for (s16 yy = sunCy - r; yy < HORIZON; yy += 1)
@@ -184,8 +185,10 @@ void flower_update(u16 t)
         bmp_lineSafe(x1 + 1, y1, x2 + 1, y2, 9);
     }
 
-    // shedding: one petal per downbeat once the fall is underway
-    if (seq_isDownbeat() && t > 260 && shed < NPETAL)
+    // shedding: one petal every half-bar once the fall is underway - twice
+    // the rate of a full downbeat, so all 8 let go well inside the scene
+    // without rushing the slow AGONY tempo itself
+    if ((seq_isDownbeat() || seq_isHalfbar()) && t > 200 && shed < NPETAL)
     {
         u16 idx = detachOrder[shed];
         pet[idx].attached = FALSE;
@@ -230,7 +233,7 @@ void flower_update(u16 t)
 
     // ---- sky ramp palette (indices 1,10,11,12,13): night -> burning dusk,
     //      morphing every frame; the in-bitmap gradient reads these ----
-    u16 warm = (t < 380) ? 0 : ((t - 380) >> 4);
+    u16 warm = (t < 250) ? 0 : ((t - 250) >> 4);
     if (warm > 40) warm = 40;
     PAL_setColor(16 + 1,  scaleCol(VCOL(warm > 24 ? 1 : 0, 0, 2), bf));
     PAL_setColor(16 + 10, scaleCol(VCOL(1 + (warm >> 4), 0, 2), bf));
@@ -243,7 +246,7 @@ void flower_update(u16 t)
         PAL_setColor(16 + 2 + i, scaleCol(fx_hue((t >> 1) + (i << 5), 6), bf));
 
     PAL_setColor(16 + 9, scaleCol(VCOL(1, 4, 2), bf));
-    u16 sg = 6 - (t > 700 ? ((t - 700) / 90) : 0);
+    u16 sg = 6 - (t > 500 ? ((t - 500) / 60) : 0);
     if (sg > 6) sg = 0;
     PAL_setColor(16 + 14, scaleCol(VCOL(7, sg, sg >> 2), bf));
     PAL_setColor(16 + 15, scaleCol(VCOL(7, 7, 7), bf));

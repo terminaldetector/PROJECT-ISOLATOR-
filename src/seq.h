@@ -22,5 +22,6 @@ u16 seq_bar(void);          // bar counter
 u16 seq_isKick(void);       // TRUE on the exact frame a kick fires
 u16 seq_isSnare(void);
 u16 seq_isDownbeat(void);   // TRUE on the first frame of a bar
+u16 seq_isHalfbar(void);    // TRUE on the first frame of step 8 (mid-bar)
 
 #endif
