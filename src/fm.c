@@ -71,6 +71,20 @@ const FMPatch fmPad =
     .slrr  = { 0x14, 0x25, 0x25, 0x25 },
 };
 
+const FMPatch fmHoover =
+{
+    // the "hoover": four detuned operators summed almost additively
+    // (algorithm 7 - little modulation, mostly beating) for the wide,
+    // nasal, buzzing rave stab that defines the early-90s techno sound
+    .alg = 7, .fb = 5,
+    .dtmul = { 0x14, 0x64, 0x24, 0x74 },
+    .tl    = { 20,   22,   18,   16 },
+    .rsar  = { 0x9D, 0x9D, 0x9D, 0x9D },
+    .d1r   = { 0x0A, 0x0A, 0x0A, 0x0A },
+    .d2r   = { 0x03, 0x03, 0x03, 0x03 },
+    .slrr  = { 0x39, 0x39, 0x39, 0x39 },
+};
+
 const FMPatch fmKick =
 {
     // industrial punch: max feedback for a harder click on the transient

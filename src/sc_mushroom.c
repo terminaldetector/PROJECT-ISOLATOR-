@@ -24,12 +24,20 @@ static u8  phase;
 static u16 detFrame;
 static u16 flashFrame;
 
-// skyline: fixed silhouette of a ruined city, rim-lit by the blast
-static u8  skyH[24];
+// skyline: fixed silhouette of a ruined city, rim-lit by the blast.
+// 16 wider buildings instead of 24 narrow ones - same coverage, a third
+// fewer scanline fills.
+#define NBUILD 16
+static u8  skyH[NBUILD];
 
-// rising smoke lobes carry their own drift
+// rising smoke lobes carry their own drift (debris trail seeds)
 #define NLOBE 10
 static s16 lobeSeed[NLOBE];
+
+// the cauliflower cap's silhouette is a fixed jagged profile (so it
+// doesn't flicker frame to frame) sampled once per detonation
+#define JAG_N 32
+static s8  capJag[JAG_N];
 
 void mushroom_init(void)
 {
@@ -40,12 +48,52 @@ void mushroom_init(void)
     flashFrame = 0;
 
     rnd_seed(0x4E42);
-    for (u16 i = 0; i < 24; i++)
-        skyH[i] = 6 + rnd_range(20);
+    for (u16 i = 0; i < NBUILD; i++)
+        skyH[i] = 6 + rnd_range(22);
     for (u16 i = 0; i < NLOBE; i++)
         lobeSeed[i] = rnd() & 255;
+    for (u16 i = 0; i < JAG_N; i++)
+        capJag[i] = (s8)(rnd() & 15) - 7;
 
     snd_setMood(SND_HARD);
+}
+
+// the billowing cauliflower cap: ONE organic scanline fill instead of a
+// base ellipse plus ten overlapping disc "lobes". The old approach spent
+// most of its time repainting the same central pixels over and over
+// (~500 scanline fills full of overlap); this walks the same ~2*ry rows
+// once, adding a fixed jagged profile plus a slow two-frequency churn to
+// the width - a richer, genuinely organic silhouette for a fraction of
+// the draw calls, with a bright rim traced along the edge for definition.
+static void cauliflowerCap(s16 cx, s16 capY, s16 cr, u16 age)
+{
+    s16 ry = (cr * 3) / 4;
+    if (ry < 1) ry = 1;
+    s32 cr2 = (s32) cr * cr;
+
+    for (s16 yy = -ry; yy <= ry; yy++)
+    {
+        s32 t = cr2 - (((s32) cr2 * yy * yy) / ((s32) ry * ry));
+        s16 baseW = (t > 0) ? (s16) isqrt32((u32) t) : 0;
+
+        s16 jitter = capJag[(yy + ry) & (JAG_N - 1)]
+                   + (SIN(age * 2 + yy * 13) >> 4)
+                   + (SIN(age * 5 - yy * 7 + 40) >> 6);
+        s16 w = baseW + jitter;
+        if (w < 1) w = 1;
+
+        // hot core rising toward the top, cooling toward the rim/base
+        u8 hot, cool;
+        if (yy < -(ry >> 2))       { hot = 12; cool = 11; }
+        else if (yy < (ry >> 3))   { hot = 9;  cool = 8;  }
+        else                       { hot = 6;  cool = 5;  }
+
+        bmp_hspan(cx - w, cx + w, capY + yy, (yy & 1) ? BCOL2(cool, hot) : BCOL2(hot, cool));
+
+        // bright rim tracing the jagged edge - just two pixels, not a span
+        BMP_setPixel(cx - w, capY + yy, BCOL(14));
+        BMP_setPixel(cx + w, capY + yy, BCOL(14));
+    }
 }
 
 // the pretty plasma sphere: a FIXED number of concentric dithered rainbow
@@ -196,20 +244,20 @@ void mushroom_update(u16 t)
     s16 capY = GY - stemH;
 
     // ---- devastated city silhouette on the horizon, rim-lit ----
-    for (u16 i = 0; i < 24; i++)
+    for (u16 i = 0; i < NBUILD; i++)
     {
-        s16 bx = i * 11 - 4;
+        s16 bx = i * 16 - 4;
         s16 bh = skyH[i];
         // buildings closer to ground zero are taller rubble
-        s16 dist = (i > 11) ? (i - 11) : (11 - i);
-        s16 h = bh - (dist < 6 ? (6 - dist) : 0);
+        s16 dist = (i > 7) ? (i - 7) : (7 - i);
+        s16 h = bh - (dist < 5 ? (5 - dist) : 0);
         if (h < 3) h = 3;
-        bmp_hspan(bx + shake, bx + 10 + shake, GY - 1, BCOL(2));
+        bmp_hspan(bx + shake, bx + 14 + shake, GY - 1, BCOL(2));
         for (s16 yy = 0; yy < h; yy++)
-            bmp_hspan(bx + shake, bx + 9 + shake, GY - 2 - yy,
+            bmp_hspan(bx + shake, bx + 13 + shake, GY - 2 - yy,
                       (yy & 1) ? BCOL2(1, 3) : BCOL2(3, 1));
         // blast-lit top edge
-        bmp_hspan(bx + shake, bx + 9 + shake, GY - 2 - h, BCOL(7));
+        bmp_hspan(bx + shake, bx + 13 + shake, GY - 2 - h, BCOL(7));
     }
 
     // ---- ground: scorched, rubble-flecked ----
@@ -229,21 +277,8 @@ void mushroom_update(u16 t)
                   (yy & 1) ? BCOL2(12, 11) : BCOL2(11, 12));
     }
 
-    // ---- billowing cauliflower cap: stacked dithered lobes ----
-    // a big central bloom plus a ring of rolling lobes around the crown
-    bmp_ellipse(cx, capY, cr, (cr * 3) / 4, 8, 6);
-    for (u16 i = 0; i < NLOBE; i++)
-    {
-        u16 a = (i * 256) / NLOBE;
-        s16 bulge = (SIN((age << 1) + lobeSeed[i]) >> 5);
-        s16 lr = (cr * 5) / 12 + bulge;
-        s16 lx = cx + ((( (cr * 3) / 4) * COS(a)) >> 8);
-        s16 ly = capY - (((cr / 2) * SIN(a)) >> 8);
-        // upper lobes hotter, lower/outer lobes cooler smoke
-        u8 hot = (SIN(a) > 40) ? 11 : 8;
-        u8 cool = (SIN(a) > 40) ? 9 : 5;
-        bmp_disc(lx, ly, lr, hot, cool);
-    }
+    // ---- billowing cauliflower cap: one organic silhouette fill ----
+    cauliflowerCap(cx, capY, cr, age);
     // white-hot heart of the cloud
     bmp_disc(cx, capY, cr >> 2, 15, 13);
     // cap underside shadow

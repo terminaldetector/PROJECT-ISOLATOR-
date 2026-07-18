@@ -180,7 +180,16 @@ static void loadSectionPatches(void)
             fm_lfo(3);
             fm_vibrato(1, 2);
             break;
-        default:                        // DRIVE / HARD
+        case SEC_HARD:
+            fm_patch(0, &fmBass, 0);
+            fm_patch(1, &fmLead, 4);
+            fm_patch(2, &fmLead, 9);
+            fm_patch(3, &fmHoover, 4);       // the rave-stab hoover
+            fm_patch(4, &fmBell, 10);
+            fm_patch(5, &fmKick, 0);
+            fm_lfo(0);
+            break;
+        default:                        // DRIVE
             fm_patch(0, &fmBass, 0);
             fm_patch(1, &fmLead, 4);
             fm_patch(2, &fmLead, 9);
@@ -430,6 +439,17 @@ fx:
         bassGlideLeft--;
     }
 
+    // PSG0 riser: on the last 4 steps of every 4th bar in the hardcore
+    // section, a rising whoosh builds tension into the next phrase -
+    // that channel is otherwise silent during HARD (the echo is muted
+    // there), so it's free for this classic rave build-up
+    if (section == SEC_HARD && (bar & 3) == 3 && step >= 12)
+    {
+        u16 pos = (step - 12) * stepLen + frameInStep;
+        PSG_setFrequency(0, 150 + pos * 35);
+        PSG_setEnvelope(0, 9);
+    }
+
     // kick pitch drop - the FM thump
     if (kickPhase < 6)
     {
@@ -453,11 +473,13 @@ fx:
         return;
     }
 
-    // snare / hat share the noise channel, snare wins
-    if (snarePhase < 5)
+    // snare / hat share the noise channel, snare wins. shaped as a rave
+    // clap - a quick double-transient rather than a smooth single decay
+    if (snarePhase < 6)
     {
+        static const u8 clapEnv[6] = { 3, 9, 4, 10, 13, 15 };
         PSG_setNoise(1, 1);
-        PSG_setEnvelope(3, 5 + snarePhase * 2);
+        PSG_setEnvelope(3, clapEnv[snarePhase]);
         snarePhase++;
     }
     else if (hatPhase < (hatOpenFlag ? 4 : 2))

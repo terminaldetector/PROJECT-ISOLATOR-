@@ -24,6 +24,7 @@ extern const FMPatch fmLead;
 extern const FMPatch fmBell;
 extern const FMPatch fmPad;
 extern const FMPatch fmKick;
+extern const FMPatch fmHoover;    // wide detuned rave "hoover" stab
 
 void fm_init(void);
 void fm_patch(u8 ch, const FMPatch *p, u8 att);      // att: extra carrier attenuation
